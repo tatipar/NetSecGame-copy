@@ -83,4 +83,49 @@ def fitness_eval_ra(individual, env): #action_id, new_observation, x, goal, pre_
     return final_reward
 
     
+env = NetworkSecurityEnvironment("netsecenv-task.yaml")
+parser = argparse.ArgumentParser()
+parser.add_argument("--force_ignore", help="Force ignore repeated actions in code", default=False, action=argparse.BooleanOptionalAction)
+args = parser.parse_args()
+
+max_number_steps = 20
+
+# GA parameters
+population_size = 100
+num_generations = 100
+mutation_prob = 0.1
+
+# Iinitialize population
+population = [individual_init(env,args,20) for _ in range(population_size)]
+
+# Generations
+for generation in range(num_generations):
+    # Evaluar la aptitud de cada individuo en la población
+    scores = [fitness_eval_ra(individual, env) for individual in population]
+    # Seleccionar a los mejores individuos
+    best_indices = np.argsort(scores)[-population_size:]
+    population = [population[i] for i in best_indices]
+    # Cruzar a los individuos para crear una nueva generación
+    new_generation = []
+    while len(new_generation) < population_size:
+        father = random.choice(population)
+        mother = random.choice(population)
+        cross_point = random.randint(1, max_number_steps - 1)
+        son = father[:cross_point] + mother[cross_point:]
+        new_generation.append(son)
+    population = new_generation
+    # Aplicar mutaciones
+    for i in range(population_size):
+        if random.random() < mutation_prob:
+            mutation_index = random.randint(0, max_number_steps - 1)
+            population[i] = mutation_operator(population[i], env, mutation_index)
+
+# Encontrar la mejor secuencia
+best_sequence = max(population, key=lambda x:fitness_eval_ra(x,env))
+best_score = fitness_eval_ra(best_sequence,env)
+
+print("Mejor secuencia encontrada:", best_sequence)
+print("Puntuación de la mejor secuencia:", best_score)
+
+final_scores = [fitness_eval_ra(individual, env) for individual in population]
 
