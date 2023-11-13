@@ -1,15 +1,25 @@
 import random
 import numpy as np
-import networkx as nx
 
-# Definir las acciones disponibles y las restricciones de dependencia
-acciones_disponibles = ['A', 'B', 'C', 'D', 'E']
-restricciones = {
-    'B': 'A',
-    'C': 'B',
-    'D': 'C',
-    'E': 'D'
-}
+# Definir las acciones disponibles y la longitud máxima de la secuencia
+def mapeo_acciones(id_accion):
+    mapeo = {
+        0: ActionType.ScanNetwork,
+        1: ActionType.FindServices,
+        2: ActionType.FindData,
+        3: ActionType.ExploitService,
+        4: ActionType.ExfiltrateData,
+        5: ActionType.NoAction
+    }    
+    # Verificar si el número está en el diccionario y devolver la cadena correspondiente
+    try: 
+        return mapeo[id_accion]
+    except ValueError:
+        print("Entrada no válida.")
+
+
+acciones_disponibles = [0, 1, 2, 3, 4, 5]
+longitud_maxima_acciones = 20
 
 # Parámetros del algoritmo genético
 tamano_poblacion = 100
@@ -17,13 +27,14 @@ num_generaciones = 100
 probabilidad_mutacion = 0.1
 
 # Función de evaluación: Calcular la puntuación de una secuencia
-def evaluar_secuencia(secuencia):
-    # Aquí debes definir cómo se califica una secuencia en función de tus objetivos
-    # En este ejemplo, simplemente contaremos la cantidad de 'A' en la secuencia
-    return secuencia.count('A')
+# DEFINIR FUNCION DE FITNESS
+#def evaluar_secuencia(secuencia):
+#    # Aquí debes definir cómo se califica una secuencia en función de tus objetivos
+#    # En este ejemplo, simplemente contaremos la cantidad de 'A' en la secuencia
+#    return secuencia.count('A')
 
 # Inicialización de la población
-poblacion = [''.join(random.choices(acciones_disponibles, k=len(acciones_disponibles))) for _ in range(tamano_poblacion)]
+poblacion = [random.choices(acciones_disponibles, k=longitud_maxima_acciones) for _ in range(tamano_poblacion)]
 
 # Ciclo de generaciones
 for generacion in range(num_generaciones):
@@ -39,31 +50,15 @@ for generacion in range(num_generaciones):
     while len(nueva_generacion) < tamano_poblacion:
         padre = random.choice(poblacion)
         madre = random.choice(poblacion)
-        punto_cruce = random.randint(1, len(acciones_disponibles) - 1)
+        punto_cruce = random.randint(1, longitud_maxima_acciones) - 1)
         hijo = padre[:punto_cruce] + madre[punto_cruce:]
-        
-        # Verificar y corregir las restricciones de dependencia
-        grafo = nx.DiGraph()
-        for accion in hijo:
-            grafo.add_node(accion)
-        for i in range(1, len(hijo)):
-            grafo.add_edge(hijo[i - 1], hijo[i])
-        for accion, accion_dependiente in restricciones.items():
-            if nx.has_path(grafo, source=accion, target=accion_dependiente):
-                continue
-            # Corregir la restricción moviendo la acción dependiente
-            pos_accion_dependiente = hijo.index(accion_dependiente)
-            pos_accion = hijo.index(accion)
-            hijo = hijo[:pos_accion] + hijo[pos_accion + 1:pos_accion_dependiente] + accion + hijo[pos_accion_dependiente:]
-
         nueva_generacion.append(hijo)
-
     poblacion = nueva_generacion
 
     # Aplicar mutaciones
     for i in range(tamano_poblacion):
         if random.random() < probabilidad_mutacion:
-            indice_mutation = random.randint(0, len(acciones_disponibles) - 1)
+            indice_mutation = random.randint(0, longitud_maxima_acciones - 1)
             poblacion[i] = poblacion[i][:indice_mutation] + random.choice(acciones_disponibles) + poblacion[i][indice_mutation + 1:]
 
 # Encontrar la mejor secuencia
