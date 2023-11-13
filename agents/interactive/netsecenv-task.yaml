@@ -23,7 +23,7 @@ agents:
 
       # In data, put the target host that must have the data and which data in format user,data
       # Example to fix the data in one host
-      known_data: {213.47.23.195: ["random"]}
+      known_data: {213.47.23.195: [[User1,DataFromServer1]]} #  ["random"]}
       # Example to fix two data in one host
       #known_data: {213.47.23.195: [[User1,DataFromServer1], [User5,DataFromServer5]]}
       # Example to fix the data in two host
@@ -50,7 +50,8 @@ agents:
   defender:
     # types are StochasticDefender and NoDefender
     #type: 'StochasticDefender'
-    type: 'StochasticWithThreshold'
+    #type: 'StochasticWithThreshold'
+    type: 'NoDefender'
     tw_size: 5
     thresholds:
       scan_network:
@@ -71,11 +72,11 @@ agents:
 
 env:
   # random means to choose the seed in a random way, so it is not fixed
-  random_seed: 'random'
+  # random_seed: 'random'
   # Or you can fix the seed
-  # random_seed: 42
+  random_seed: 42
   scenario: 'scenario1'
-  max_steps: 15
+  max_steps: 150
   goal_reward: 100
   detection_reward: -50
   step_reward: -1
