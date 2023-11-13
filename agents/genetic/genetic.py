@@ -1,127 +1,86 @@
 import random
-import json
-
+import numpy as np
 import copy
 import argparse
 from env.network_security_game import NetworkSecurityEnvironment
-from env.game_components import ActionType, Action, IP, Data, Network, Service
 from agents.random.random_agent import RandomAgent
-
-env = NetworkSecurityEnvironment("netsecenv-task.yaml")
-observation = env.reset()
-
-
-def action_map(action_id):
-    map_dic = {
-        0: ActionType.ScanNetwork,
-        1: ActionType.FindServices,
-        2: ActionType.FindData,
-        3: ActionType.ExploitService,
-        4: ActionType.ExfiltrateData#,
-        #5: ActionType.NoAction
-    }    
-    # Verificar si el número está en el diccionario y devolver la cadena correspondiente
-    try: 
-        return map_dic[action_id]
-    except ValueError:
-        print("No valid entry.")
-
-
-def pre_validate_action(action_id, state):
-    valid = False
-    try:
-        action_str = action_map(action_id).name
-        match action_str:
-            case 'ScanNetwork':
-                if len(state.known_networks) > 0:
-                    valid = True       
-            case 'FindServices':
-                if len(state.known_hosts) > 0: # and len(set(known_hosts)-set(contr_hosts))>0: ESTO PARA EL FITNESS
-                    valid = True
-            case 'ExploitService':
-                if len(state.known_services) > 0:
-                    valid = True
-            case 'FindData':
-                if len(state.controlled_hosts) > 0:
-                    valid = True
-            case 'ExfiltrateData':
-                if len(state.known_data) > 0:
-                    valid = True
-            case _:
-                valid = False
-        return valid
-    except:
-        return False
-        
-        
-def choose_parameters(action_info, state, goal):
-    json_data = json.loads(state.as_json())
-    
-    known_nets = json_data["known_networks"]
-    known_hosts = json_data["known_hosts"]
-    contr_hosts = json_data["controlled_hosts"]
-    known_serv = json_data["known_services"]
-    known_data = json_data["known_data"]
-    
-    x = False
-    action_type = action_map(int(action_info["id"]))
-    match action_type.name:
-        case 'ScanNetwork':
-            network = random.choice(known_nets)
-            parameters = {"target_network": Network(IP(network["ip"]), network["mask"])}
-        case 'FindServices':
-            host = random.choice(known_hosts)
-            parameters = {"target_host": IP(host["ip"])}
-            if host in contr_hosts:
-                x = True
-        case 'ExploitService':
-            host = random.choice(list(known_serv))
-            service = random.choice(known_serv[host])
-            parameters = {"target_host": IP(host), "target_service": Service(service["name"], service["type"], service["version"], service["is_local"])}
-            if host in contr_hosts:
-                x = True
-        case 'FindData':
-            host = random.choice(contr_hosts)
-            parameters = {"target_host": IP(host)}
-        case 'ExfiltrateData':
-            target_host = list(goal["known_data"].keys())[0]
-            source_host = random.choice(list(known_data))
-            data_choose = random.choice(source_host)
-            parameters = {"target_host": IP(target_host), "source_host": IP(source_host), "data": Data(data_choose["owner"], data_choose["id"])}
-            if (source_host == target_host) or (data_choose in known_data[target_host]):
-                x = True
-    #new_action = Action(action_type=action_type, params=parameters)
-    action_info["parameters"] = parameters
-    action_info["redundant"] = x
-    return action_info #new_action, x
-        # METER x EN action_info ??
-        
-
-
-def fitness_eval(individual, env, goal): #action_id, new_observation, x, goal, pre_validate, index):
+from env.game_components import Action, ActionType #, IP, Data, Network, Service
+ 
+def individual_init(env, args, size):
     observation = env.reset()
+    individual = []
+    random_agent = RandomAgent(env,args)
+    for i in range(size):
+        new_action = random_agent.move(observation, individual)
+        individual.append(new_action)
+        observation = env.step(new_action)
+    return individual
+
+
+def generate_valid_actions(state):
+    # (function copied from RandomAgent)
+    valid_actions = set()
+    #Network Scans
+    for network in state.known_networks:
+        # TODO ADD neighbouring networks
+        valid_actions.add(Action(ActionType.ScanNetwork, params={"target_network": network}))
+    # Service Scans
+    for host in state.known_hosts:
+        valid_actions.add(Action(ActionType.FindServices, params={"target_host": host}))
+    # Service Exploits
+    for host, service_list in state.known_services.items():
+        for service in service_list:
+            valid_actions.add(Action(ActionType.ExploitService, params={"target_host": host , "target_service": service}))
+    # Data Scans
+    for host in state.controlled_hosts:
+        valid_actions.add(Action(ActionType.FindData, params={"target_host": host}))
+    # Data Exfiltration
+    for src_host, data_list in state.known_data.items():
+        for data in data_list:
+            for trg_host in state.controlled_hosts:
+                if trg_host != src_host:
+                    valid_actions.add(Action(ActionType.ExfiltrateData, params={"target_host": trg_host, "source_host": src_host, "data": data}))
+    return list(valid_actions)
+
+
+def mutation_operator(individual, env, index):
+    observation = env.reset()
+    new_action = []
+    for i in range(len(individual)):
+        if i < index:
+            valid_actions = generate_valid_actions(observation.state)
+            if individual[i] in valid_actions:
+                observation = env.step(individual[i])
+            else:
+                index = i
+        else:
+            break
+    valid_actions = generate_valid_actions(observation.state)
+    new_action.append(random.choice(valid_actions))
+    return individual[:index] + new_action + individual[index+1:]
+
+
+def fitness_eval_ra(individual, env): #action_id, new_observation, x, goal, pre_validate, index):
+    observation = env.reset()
+    goal = copy.deepcopy(env._win_conditions)
     reward = 0
     for i in range(len(individual)):
-        current_state = observation.state
-        if len(individual[i]) == 1:
-            pre_validate = pre_validate_action(int(individual[i]["id"]), current_state)
-            if pre_validate:
-                individual[i] = choose_parameters(individual[i], current_state, goal)
+        previous_state = observation.state
+        valid_actions = generate_valid_actions(previous_state)
+        if individual[i] in valid_actions:
+            observation = env.step(individual[i])
+            current_state = observation.state
+            if current_state != previous_state:
+                reward += observation.reward * (-10) 
             else:
-                reward += # PENALIZAR
-                break
-        action_type = action_map(int(action_info["id"]))
-        parameters = action_info["parameters"]
-        redundant = action_info["redundant"]
-        observation = env.step(Action(action_type=action_type, params=parameters))
-        if redundant:
-            reward += observation.reward # * FACTOR ?? Caso negativo: hizo una elección que no aporta, como explotar un servicio que ya había explotado antes
+                reward += 0
         else:
-            reward += observation.reward # * FACTOR ?? Caso positivo: eligió bien los parámetros
+            reward += observation.reward * 100
         if observation.done:
-            reward += observation.reward # * FACTOR ?? GRAN recompensa por alcanzar el objetivo
+            reward += observation.reward * (-10000)
             break
-    final_reward = reward # * i * FACTOR proporcional (o inversamente proporcional) a la posición dentro del vector
-    return individual, final_reward
+    final_reward = reward * i 
+    return final_reward
+
     
 
