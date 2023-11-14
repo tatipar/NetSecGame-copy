@@ -23,7 +23,7 @@ agents:
 
       # In data, put the target host that must have the data and which data in format user,data
       # Example to fix the data in one host
-      known_data: {213.47.23.195: [[User1,DataFromServer1]]} # ["random"]}
+      known_data: {213.47.23.195: [[User1,DataFromServer1]]} #  ["random"]}
       # Example to fix two data in one host
       #known_data: {213.47.23.195: [[User1,DataFromServer1], [User5,DataFromServer5]]}
       # Example to fix the data in two host
