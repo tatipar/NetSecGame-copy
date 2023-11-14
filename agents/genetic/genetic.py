@@ -87,6 +87,17 @@ def fitness_eval_ra(individual, env): #action_id, new_observation, x, goal, pre_
     return final_reward
 
     
+def choose_parents(population):
+    """ Tournament selection """
+    options = []
+    chosen = []
+    for i in range(2):
+        options.append(random.choice(population))
+        options.append(random.choice(population))
+        chosen.append(max(options, key=lambda x:fitness_eval_ra(x,env)))
+    return chosen[0], chosen[1]
+
+
 env = NetworkSecurityEnvironment("netsecenv-task.yaml")
 parser = argparse.ArgumentParser()
 parser.add_argument("--force_ignore", help="Force ignore repeated actions in code", default=False, action=argparse.BooleanOptionalAction)
@@ -98,38 +109,41 @@ max_number_steps = 20
 population_size = 100
 num_generations = 100
 mutation_prob = 0.1
+num_replace = 30
 
-# Iinitialize population
+# Initialize population
 population = [individual_init(env,args,20) for _ in range(population_size)]
 
 # Generations
 for generation in range(num_generations):
-    # Evaluar la aptitud de cada individuo en la población
-    scores = [fitness_eval_ra(individual, env) for individual in population]
-    # Seleccionar a los mejores individuos
-    best_indices = np.argsort(scores)[-population_size:]
-    population = [population[i] for i in best_indices]
-    # Cruzar a los individuos para crear una nueva generación
     new_generation = []
-    while len(new_generation) < population_size:
-        father = random.choice(population)
-        mother = random.choice(population)
+    offspring = []
+    for j in range(population_size):
+        # cross-over
+        parent1, parent2 = choose_parents(population)
         cross_point = random.randint(1, max_number_steps - 1)
-        son = father[:cross_point] + mother[cross_point:]
-        new_generation.append(son)
-    population = new_generation
-    # Aplicar mutaciones
-    for i in range(population_size):
+        son = parent1[:cross_point] + parent2[cross_point:]
+        # mutation
         if random.random() < mutation_prob:
             mutation_index = random.randint(0, max_number_steps - 1)
-            population[i] = mutation_operator(population[i], env, mutation_index)
+            son = mutation_operator(son, env, mutation_index)
+        offspring.append(son)
+    # steady-state
+    parents_scores = [fitness_eval_ra(individual, env) for individual in population]
+    offspring_scores = [fitness_eval_ra(individual, env) for individual in offspring]
+    best_indices_parents = np.argsort(parents_scores)[-population_size:]
+    parents_sort = [population[i] for i in best_indices_parents]
+    best_indices_offspring = np.argsort(offspring_scores)[-population_size:]
+    offspring_sort = [offspring[i] for i in best_indices_offspring]
+    new_generation = parents_sort[:population_size-num_replace] + offspring_sort[:num_replace]
+    population = new_generation
 
-# Encontrar la mejor secuencia
+# Best sequence (in final population)
 best_sequence = max(population, key=lambda x:fitness_eval_ra(x,env))
 best_score = fitness_eval_ra(best_sequence,env)
 
-print("Mejor secuencia encontrada:", best_sequence)
-print("Puntuación de la mejor secuencia:", best_score)
+print("Best sequence:", best_sequence)
+print("Best sequence score:", best_score)
 
-final_scores = [fitness_eval_ra(individual, env) for individual in population]
+#final_scores = [fitness_eval_ra(individual, env) for individual in population]
 
