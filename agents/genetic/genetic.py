@@ -1,6 +1,9 @@
 import sys
 from os import path
+# script:
 sys.path.append( path.dirname(path.dirname( path.dirname( path.abspath(__file__) ) ) ))
+# terminal:
+#sys.path.append(path.dirname(path.dirname(path.abspath(''))))
 
 import random
 import numpy as np
@@ -95,6 +98,7 @@ def choose_parents(population):
         options.append(random.choice(population))
         options.append(random.choice(population))
         chosen.append(max(options, key=lambda x:fitness_eval_ra(x,env)))
+        options = []
     return chosen[0], chosen[1]
 
 
@@ -112,28 +116,33 @@ mutation_prob = 0.1
 num_replace = 30
 
 # Initialize population
-population = [individual_init(env,args,20) for _ in range(population_size)]
+population = [individual_init(env,args,max_number_steps) for _ in range(population_size)]
 
 # Generations
 for generation in range(num_generations):
     new_generation = []
     offspring = []
-    for j in range(population_size):
+    for j in range(int(population_size/2)):
         # cross-over
         parent1, parent2 = choose_parents(population)
         cross_point = random.randint(1, max_number_steps - 1)
-        son = parent1[:cross_point] + parent2[cross_point:]
+        son1 = parent1[:cross_point] + parent2[cross_point:]
+        son2 = parent2[:cross_point] + parent1[cross_point:]
         # mutation
         if random.random() < mutation_prob:
             mutation_index = random.randint(0, max_number_steps - 1)
-            son = mutation_operator(son, env, mutation_index)
-        offspring.append(son)
+            son1 = mutation_operator(son1, env, mutation_index)
+        if random.random() < mutation_prob:
+            mutation_index = random.randint(0, max_number_steps - 1)
+            son2 = mutation_operator(son2, env, mutation_index)
+        offspring.append(son1)
+        offspring.append(son2)
     # steady-state
     parents_scores = [fitness_eval_ra(individual, env) for individual in population]
     offspring_scores = [fitness_eval_ra(individual, env) for individual in offspring]
-    best_indices_parents = np.argsort(parents_scores)[-population_size:]
+    best_indices_parents = np.argsort(parents_scores)[::-1][:population_size]
     parents_sort = [population[i] for i in best_indices_parents]
-    best_indices_offspring = np.argsort(offspring_scores)[-population_size:]
+    best_indices_offspring = np.argsort(offspring_scores)[::-1][:population_size]
     offspring_sort = [offspring[i] for i in best_indices_offspring]
     new_generation = parents_sort[:population_size-num_replace] + offspring_sort[:num_replace]
     population = new_generation
