@@ -12,7 +12,8 @@ import argparse
 from env.network_security_game import NetworkSecurityEnvironment
 from agents.random.random_agent import RandomAgent
 from env.game_components import Action, ActionType #, IP, Data, Network, Service
- 
+
+
 def individual_init(env, args, size):
     observation = env.reset()
     individual = []
@@ -50,7 +51,7 @@ def generate_valid_actions(state):
     return list(valid_actions)
 
 
-def mutation_operator(individual, env, index):
+def mutation_operator_1gen(individual, env, index):
     observation = env.reset()
     new_action = []
     for i in range(len(individual)):
@@ -65,6 +66,20 @@ def mutation_operator(individual, env, index):
     valid_actions = generate_valid_actions(observation.state)
     new_action.append(random.choice(valid_actions))
     return individual[:index] + new_action + individual[index+1:]
+
+
+def mutation_operator(individual, env, mutation_prob):
+    observation = env.reset()
+    new_individual = []
+    for i in range(len(individual)):
+        if random.random() < mutation_prob:
+            valid_actions = generate_valid_actions(observation.state)
+            new_action = random.choice(valid_actions) 
+        else:
+            new_action = individual[i]
+        observation = env.step(new_action)
+        new_individual.append(new_action)
+    return new_individual
 
 
 def fitness_eval_ra(individual, env): #action_id, new_observation, x, goal, pre_validate, index):
@@ -84,7 +99,7 @@ def fitness_eval_ra(individual, env): #action_id, new_observation, x, goal, pre_
         else:
             reward += observation.reward * 100
         if observation.done:
-            reward += observation.reward * (-10000)
+            reward += observation.reward * (-1000)
             break
     final_reward = reward * i 
     return final_reward
@@ -103,6 +118,7 @@ def choose_parents(population):
 
 
 env = NetworkSecurityEnvironment("netsecenv-task.yaml")
+#observation = env.reset()
 parser = argparse.ArgumentParser()
 parser.add_argument("--force_ignore", help="Force ignore repeated actions in code", default=False, action=argparse.BooleanOptionalAction)
 args = parser.parse_args()
@@ -113,28 +129,42 @@ max_number_steps = 20
 population_size = 100
 num_generations = 100
 mutation_prob = 0.1
+cross_prob = 0.8
 num_replace = 30
 
 # Initialize population
 population = [individual_init(env,args,max_number_steps) for _ in range(population_size)]
 
 # Generations
-for generation in range(num_generations):
+generation = 0
+while (generation < num_generations):# or (best_score < 10000):
+    print("generation: ",generation)
+    generation += 1
     new_generation = []
     offspring = []
+    print(env.timestamp)
     for j in range(int(population_size/2)):
         # cross-over
         parent1, parent2 = choose_parents(population)
-        cross_point = random.randint(1, max_number_steps - 1)
-        son1 = parent1[:cross_point] + parent2[cross_point:]
-        son2 = parent2[:cross_point] + parent1[cross_point:]
-        # mutation
-        if random.random() < mutation_prob:
-            mutation_index = random.randint(0, max_number_steps - 1)
-            son1 = mutation_operator(son1, env, mutation_index)
-        if random.random() < mutation_prob:
-            mutation_index = random.randint(0, max_number_steps - 1)
-            son2 = mutation_operator(son2, env, mutation_index)
+        if random.random() < cross_prob:
+            cross_point = random.randint(1, max_number_steps - 1)
+            son1 = parent1[:cross_point] + parent2[cross_point:]
+            son2 = parent2[:cross_point] + parent1[cross_point:]
+        else:
+            son1 = parent1.copy()
+            son2 = parent2.copy()
+        #
+        # mutation (one gen):
+        #if random.random() < mutation_prob:
+        #    mutation_index = random.randint(0, max_number_steps - 1)
+        #    son1 = mutation_operator_1gen(son1, env, mutation_index)
+        #if random.random() < mutation_prob:
+        #    mutation_index = random.randint(0, max_number_steps - 1)
+        #    son2 = mutation_operator_1gen(son2, env, mutation_index)
+        #
+        # mutation (maybe more than one gen):
+        son1 = mutation_operator(son1, env, mutation_prob)
+        son2 = mutation_operator(son2, env, mutation_prob)
         offspring.append(son1)
         offspring.append(son2)
     # steady-state
@@ -146,10 +176,9 @@ for generation in range(num_generations):
     offspring_sort = [offspring[i] for i in best_indices_offspring]
     new_generation = parents_sort[:population_size-num_replace] + offspring_sort[:num_replace]
     population = new_generation
-
-# Best sequence (in final population)
-best_sequence = max(population, key=lambda x:fitness_eval_ra(x,env))
-best_score = fitness_eval_ra(best_sequence,env)
+    # Best sequence (in final population)
+    best_sequence = max(population, key=lambda x:fitness_eval_ra(x,env))
+    best_score = fitness_eval_ra(best_sequence,env)
 
 print("Best sequence:", best_sequence)
 print("Best sequence score:", best_score)
