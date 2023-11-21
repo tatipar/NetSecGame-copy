@@ -76,25 +76,25 @@ env:
   # Or you can fix the seed
   random_seed: 42
   scenario: 'scenario1'
-  max_steps: 150
+  max_steps: 30
   goal_reward: 100
   detection_reward: -50
   step_reward: -1
-  store_replay_buffer: True
+  store_replay_buffer: False #True
   use_dynamic_addresses: False
   actions:
     scan_network:
-      prob_success: 0.9
+      prob_success: 1.0 #0.9
       prob_detection: 1
     find_services:
-      prob_success: 0.9
+      prob_success: 1.0 #0.9
       prob_detection: 1
     exploit_services:
-      prob_success: 0.7
+      prob_success: 1.0 #0.7
       prob_detection: 1
     find_data:
-      prob_success: 0.8
+      prob_success: 1.0 #0.8
       prob_detection: 1
     exfiltrate_data:
-      prob_success: 0.8
+      prob_success: 1.0 #0.8
       prob_detection: 1
