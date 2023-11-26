@@ -161,7 +161,7 @@ all_actions_by_type = get_all_actions_by_type(all_actions)
 
 ## GA parameters
 population_size = 100
-num_generations = 100
+num_generations = 500
 
 # crossover parameters
 select_parents_with_replacement = True
@@ -172,6 +172,8 @@ cross_prob = 0.8
 # mutation parameters
 prob_parameter_mutation = 0.5
 mutation_prob = 0.1
+
+# steady-state parameters
 num_replace = 30
 
 
@@ -182,7 +184,6 @@ population = [[random.choice(all_actions) for _ in range(max_number_steps)] for 
 # Generations
 generation = 0
 while (generation < num_generations) or (best_score < 100000):
-    print("generation: ",generation)
     generation += 1
     new_generation = []
     offspring = []
@@ -227,8 +228,8 @@ while (generation < num_generations) or (best_score < 100000):
 best_sequence = population[0]
 best_score = new_generation_scores[0]
 
-print("Best sequence:", best_sequence)
-print("Best sequence score:", best_score)
+print("Best sequence: ", best_sequence)
+print("Best sequence score: ", best_score)
 
 #final_scores = [fitness_eval(individual, env.reset(), goal) for individual in population]
 
