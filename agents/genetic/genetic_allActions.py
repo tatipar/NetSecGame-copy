@@ -8,7 +8,7 @@ sys.path.append( path.dirname(path.dirname( path.dirname( path.abspath(__file__)
 import random
 import numpy as np
 import copy
-import argparse
+#import argparse
 from env.network_security_game import NetworkSecurityEnvironment
 #from agents.random.random_agent import RandomAgent
 from env.game_components import Action, ActionType #, IP, Data, Network, Service
@@ -40,32 +40,6 @@ def generate_valid_actions(state):
     return list(valid_actions)
 
 
-all_actions_by_type = {}
-ScanNetwork_list=[]
-FindServices_list=[]
-ExploitService_list=[]
-FindData_list=[]
-ExfiltrateData_list=[]
-for i in range(len(all_actions)):
-    if ActionType.ScanNetwork==all_actions[i].type:
-        ScanNetwork_list.append(all_actions[i])
-    elif ActionType.FindServices==all_actions[i].type:
-        FindServices_list.append(all_actions[i])
-    elif ActionType.ExploitService==all_actions[i].type:
-        ExploitService_list.append(all_actions[i])
-    elif ActionType.FindData==all_actions[i].type:
-        FindData_list.append(all_actions[i])
-    else:
-        ExfiltrateData_list.append(all_actions[i])
-
-
-all_actions_by_type["ActionType.ScanNetwork"] = ScanNetwork_list
-all_actions_by_type["ActionType.FindServices"] = FindServices_list
-all_actions_by_type["ActionType.ExploitService"] = ExploitService_list
-all_actions_by_type["ActionType.FindData"] = FindData_list
-all_actions_by_type["ActionType.ExfiltrateData"] = ExfiltrateData_list
-
-
 def mutation_operator_by_parameter(individual, all_actions_by_type, mutation_prob):
     new_individual = []
     for i in range(len(individual)):
@@ -82,112 +56,179 @@ def mutation_operator_by_action(individual, all_actions, mutation_prob):
     for i in range(len(individual)):
         if random.random() < mutation_prob:
             new_individual.append(random.choice(all_actions))
-        else:
+        else: 
             new_individual.append(individual[i])
     return new_individual
 
 
 def crossover_operator(parent1, parent2, num_points, cross_prob):
-    """TODO. this function is not complete"""
-    which_cross_points = np.sort(np.random.choice(len(parent1), num_points, replace=False)
-    son1 = []
-    son2 = []
     if random.random() < cross_prob:
-        for i in range(len(which_cross_point)):
-            son1.append(parent1[:which_cross_point[i]]) + parent2[cross_point:]
-        son2 = parent2[:cross_point] + parent1[cross_point:]
+        len_ind = len(parent1)
+        cross_points = np.sort(np.random.choice(len_ind, num_points, replace=False))
+        child1 = []
+        child2 = []
+        current_parent1 = parent1
+        current_parent2 = parent2
+        for i in range(len_ind):
+            child1.append(current_parent1[i])
+            child2.append(current_parent2[i])
+            if i in cross_points:
+                current_parent1 = parent2 if current_parent1 is parent1 else parent1
+                current_parent2 = parent1 if current_parent2 is parent2 else parent2
     else:
-        son1 = parent1.copy()
-        son2 = parent2.copy()
-
+        child1 = parent1.copy()
+        child2 = parent2.copy()
+    return child1, child2
 
 
 def fitness_eval(individual, observation, goal): 
-    num_valid_actions = 0
-    reward = 1
+    num_good_actions = 0
+    reward = 0
+    current_state = observation.state
     for i in range(len(individual)):
-        current_state = observation.state
         valid_actions = generate_valid_actions(current_state)
-        if individual[i] in valid_actions:
-            num_valid_actions += 1
         observation = env.step(individual[i])
-        if observation.done:
-            reward = 1000 
-    return reward * num_valid_actions
+        new_state = observation.state
+        if individual[i] in valid_actions:
+            if current_state != new_state:
+                num_good_actions += 1
+                reward += 10
+            else: reward += 0
+        else:
+            reward += -100
+        current_state = observation.state
+    if observation.done:
+        reward += 100000
+    if num_good_actions > 0:
+        return reward * num_good_actions
+    else:
+        return reward
 
     
-def choose_parents(population):
+def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True):
     """ Tournament selection """
-    options = []
+    from_population = population.copy()
     chosen = []
     for i in range(2):
-        options.append(random.choice(population))
-        options.append(random.choice(population))
-        chosen.append(max(options, key=lambda x:fitness_eval_ra(x,env)))
         options = []
+        for _ in range(num_per_tournament):
+            options.append(random.choice(from_population))
+        chosen.append(max(options, key=lambda x:fitness_eval(x,env.reset(),goal)))
+        if i==0 and are_parents_diff:
+            from_population.remove(chosen[0])
     return chosen[0], chosen[1]
 
 
- 
+def get_all_actions_by_type(all_actions):
+    all_actions_by_type = {}
+    ScanNetwork_list=[]
+    FindServices_list=[]
+    ExploitService_list=[]
+    FindData_list=[]
+    ExfiltrateData_list=[]
+    for i in range(len(all_actions)):
+        if ActionType.ScanNetwork==all_actions[i].type:
+            ScanNetwork_list.append(all_actions[i])
+        elif ActionType.FindServices==all_actions[i].type:
+            FindServices_list.append(all_actions[i])
+        elif ActionType.ExploitService==all_actions[i].type:
+            ExploitService_list.append(all_actions[i])
+        elif ActionType.FindData==all_actions[i].type:
+            FindData_list.append(all_actions[i])
+        else:
+            ExfiltrateData_list.append(all_actions[i])
+
+    all_actions_by_type["ActionType.ScanNetwork"] = ScanNetwork_list
+    all_actions_by_type["ActionType.FindServices"] = FindServices_list
+    all_actions_by_type["ActionType.ExploitService"] = ExploitService_list
+    all_actions_by_type["ActionType.FindData"] = FindData_list
+    all_actions_by_type["ActionType.ExfiltrateData"] = ExfiltrateData_list
+    return all_actions_by_type
+
+
+
+## The environment is initialized
 env = NetworkSecurityEnvironment("netsecenv-task.yaml")
-#observation = env.reset()
-parser = argparse.ArgumentParser()
-parser.add_argument("--force_ignore", help="Force ignore repeated actions in code", default=False, action=argparse.BooleanOptionalAction)
-args = parser.parse_args()
-goal = copy.deepcopy(env._win_conditions)
 
-max_number_steps = 20
+## Info from environment
+goal = copy.deepcopy(env._goal_conditions)
+max_number_steps = env._max_steps
 
-# GA parameters
+## Possible actions
+all_actions = env.get_all_actions()
+all_actions_by_type = get_all_actions_by_type(all_actions)
+
+
+## GA parameters
 population_size = 100
 num_generations = 100
-mutation_prob = 0.1
+
+# crossover parameters
+select_parents_with_replacement = True
+num_per_tournament = 2
+num_points = 3
 cross_prob = 0.8
+
+# mutation parameters
+prob_parameter_mutation = 0.5
+mutation_prob = 0.1
 num_replace = 30
 
+
 # Initialize population
-population = [individual_init(env,args,max_number_steps) for _ in range(population_size)]
+population = [[random.choice(all_actions) for _ in range(max_number_steps)] for _ in range(population_size)]
+
 
 # Generations
 generation = 0
-while (generation < num_generations):# or (best_score < 10000):
+while (generation < num_generations) or (best_score < 100000):
     print("generation: ",generation)
     generation += 1
     new_generation = []
     offspring = []
-    print(env.timestamp)
+    popu_crossover = population.copy()
     for j in range(int(population_size/2)):
         # cross-over
-        parent1, parent2 = choose_parents(population)
-        #
-        # mutation (one gen):
-        #if random.random() < mutation_prob:
-        #    mutation_index = random.randint(0, max_number_steps - 1)
-        #    son1 = mutation_operator_1gen(son1, env, mutation_index)
-        #if random.random() < mutation_prob:
-        #    mutation_index = random.randint(0, max_number_steps - 1)
-        #    son2 = mutation_operator_1gen(son2, env, mutation_index)
-        #
-        # mutation (maybe more than one gen):
-        son1 = mutation_operator(son1, env, mutation_prob)
-        son2 = mutation_operator(son2, env, mutation_prob)
-        offspring.append(son1)
-        offspring.append(son2)
+        if j == 0 or select_parents_with_replacement:
+            pass
+        else:
+            popu_crossover.remove(parent1)
+            popu_crossover.remove(parent2)
+        parent1, parent2 = choose_parents(popu_crossover, goal, num_per_tournament, True)
+        child1, child2 = crossover_operator(parent1, parent2, num_points, cross_prob)
+        # mutation
+        if random.random() < prob_parameter_mutation:
+            child1 = mutation_operator_by_parameter(child1, all_actions_by_type, mutation_prob)
+            child2 = mutation_operator_by_parameter(child2, all_actions_by_type, mutation_prob)
+        else:
+            child1 = mutation_operator_by_action(child1, all_actions, mutation_prob)
+            child2 = mutation_operator_by_action(child2, all_actions, mutation_prob)
+        offspring.append(child1)
+        offspring.append(child2)
     # steady-state
-    parents_scores = [fitness_eval_ra(individual, env) for individual in population]
-    offspring_scores = [fitness_eval_ra(individual, env) for individual in offspring]
+    # parents
+    parents_scores = [fitness_eval(individual, env.reset(), goal) for individual in population]
     best_indices_parents = np.argsort(parents_scores)[::-1][:population_size]
     parents_sort = [population[i] for i in best_indices_parents]
+    parents_scores_sort = [parents_scores[i] for i in best_indices_parents]
+    # offspring
+    offspring_scores = [fitness_eval(individual, env.reset(), goal) for individual in offspring]
     best_indices_offspring = np.argsort(offspring_scores)[::-1][:population_size]
-    offspring_sort = [offspring[i] for i in best_indices_offspring]
+    offspring_sort = [offspring[i] for i in best_indices_offspring] 
+    offspring_scores_sort = [offspring_scores[i] for i in best_indices_offspring] 
+    # new generation
     new_generation = parents_sort[:population_size-num_replace] + offspring_sort[:num_replace]
-    population = new_generation
-    # Best sequence (in final population)
-    best_sequence = max(population, key=lambda x:fitness_eval_ra(x,env))
-    best_score = fitness_eval_ra(best_sequence,env)
+    new_generation_scores = parents_scores_sort[:population_size-num_replace] + offspring_scores_sort[:num_replace]
+    best_score = new_generation_scores[0]
+    population = new_generation 
+
+
+# Best sequence
+best_sequence = population[0]
+best_score = new_generation_scores[0]
 
 print("Best sequence:", best_sequence)
 print("Best sequence score:", best_score)
 
-#final_scores = [fitness_eval_ra(individual, env) for individual in population]
+#final_scores = [fitness_eval(individual, env.reset(), goal) for individual in population]
 
