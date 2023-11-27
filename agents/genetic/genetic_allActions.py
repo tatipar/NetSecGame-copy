@@ -5,9 +5,12 @@ sys.path.append( path.dirname(path.dirname( path.dirname( path.abspath(__file__)
 # terminal:
 #sys.path.append(path.dirname(path.dirname(path.abspath(''))))
 
+import time
 import random
 import numpy as np
+import pandas as pd
 import copy
+import json
 #import argparse
 from env.network_security_game import NetworkSecurityEnvironment
 #from agents.random.random_agent import RandomAgent
@@ -81,7 +84,12 @@ def crossover_operator(parent1, parent2, num_points, cross_prob):
     return child1, child2
 
 
-def fitness_eval(individual, observation, goal): 
+def fitness_eval_v1(individual, observation, goal): 
+    """
+    This function rewards when a valid action is performed and a changing state is observed. If the state does not change, it does not contribute to the reward.
+    Actions that are not valid are penalized.
+    A "good action" is an action that is valid and changes the state.
+    """
     num_good_actions = 0
     reward = 0
     current_state = observation.state
@@ -93,13 +101,45 @@ def fitness_eval(individual, observation, goal):
             if current_state != new_state:
                 num_good_actions += 1
                 reward += 10
-            else: reward += 0
+            else: 
+                reward += 0
         else:
             reward += -100
         current_state = observation.state
-    if observation.done:
+    if observation.info["end_reason"]=="goal_reached":
         reward += 100000
-    if num_good_actions > 0:
+    if reward >= 0:
+        return reward * num_good_actions
+    else:
+        return reward
+
+    
+def fitness_eval_v2(individual, observation, goal): 
+    """
+    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+    Finally, actions that do not change the state and are not valid are penalized.
+    A "good action" is an action that changes the state (not necessarily a valid action).
+    """
+    num_good_actions = 0
+    reward = 0
+    current_state = observation.state
+    for i in range(len(individual)):
+        valid_actions = generate_valid_actions(current_state)
+        observation = env.step(individual[i])
+        new_state = observation.state
+        if current_state != new_state:
+            reward += 10
+            num_good_actions += 1
+        else:
+            if individual[i] in valid_actions:
+                reward += 0
+            else:
+                reward += -100
+        current_state = observation.state
+    if observation.info["end_reason"]=="goal_reached":
+        reward += 100000
+    if reward >= 0:
         return reward * num_good_actions
     else:
         return reward
@@ -113,7 +153,7 @@ def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True
         options = []
         for _ in range(num_per_tournament):
             options.append(random.choice(from_population))
-        chosen.append(max(options, key=lambda x:fitness_eval(x,env.reset(),goal)))
+        chosen.append(max(options, key=lambda x:fitness_eval_v2(x,env.reset(),goal)))
         if i==0 and are_parents_diff:
             from_population.remove(chosen[0])
     return chosen[0], chosen[1]
@@ -137,7 +177,6 @@ def get_all_actions_by_type(all_actions):
             FindData_list.append(all_actions[i])
         else:
             ExfiltrateData_list.append(all_actions[i])
-
     all_actions_by_type["ActionType.ScanNetwork"] = ScanNetwork_list
     all_actions_by_type["ActionType.FindServices"] = FindServices_list
     all_actions_by_type["ActionType.ExploitService"] = ExploitService_list
@@ -165,7 +204,7 @@ num_generations = 500
 
 # crossover parameters
 select_parents_with_replacement = True
-num_per_tournament = 2
+num_per_tournament = 4
 num_points = 3
 cross_prob = 0.8
 
@@ -179,14 +218,25 @@ num_replace = 30
 
 # Initialize population
 population = [[random.choice(all_actions) for _ in range(max_number_steps)] for _ in range(population_size)]
+population_init_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
+
+generation_fitness_mean = []
+generation_fitness_std = []
+
+generation_fitness_mean.append(np.mean(population_init_scores))
+generation_fitness_std.append(np.std(population_init_scores))
 
 
 # Generations
+start_time = time.time()
+
 generation = 0
-while (generation < num_generations) or (best_score < 100000):
+best_score = max(population_init_scores)
+while (generation < num_generations) and (best_score < 100000):
     generation += 1
     new_generation = []
     offspring = []
+    generation_fitness = []
     popu_crossover = population.copy()
     for j in range(int(population_size/2)):
         # cross-over
@@ -208,28 +258,85 @@ while (generation < num_generations) or (best_score < 100000):
         offspring.append(child2)
     # steady-state
     # parents
-    parents_scores = [fitness_eval(individual, env.reset(), goal) for individual in population]
-    best_indices_parents = np.argsort(parents_scores)[::-1][:population_size]
+    parents_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
+    best_indices_parents = np.argsort(parents_scores)[::][:population_size] # min to max fitness (higher is better)
     parents_sort = [population[i] for i in best_indices_parents]
     parents_scores_sort = [parents_scores[i] for i in best_indices_parents]
     # offspring
-    offspring_scores = [fitness_eval(individual, env.reset(), goal) for individual in offspring]
-    best_indices_offspring = np.argsort(offspring_scores)[::-1][:population_size]
+    offspring_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in offspring]
+    best_indices_offspring = np.argsort(offspring_scores)[::][:population_size] # min to max fitness (higher is better)
     offspring_sort = [offspring[i] for i in best_indices_offspring] 
     offspring_scores_sort = [offspring_scores[i] for i in best_indices_offspring] 
     # new generation
-    new_generation = parents_sort[:population_size-num_replace] + offspring_sort[:num_replace]
-    new_generation_scores = parents_scores_sort[:population_size-num_replace] + offspring_scores_sort[:num_replace]
-    best_score = new_generation_scores[0]
-    population = new_generation 
+    new_generation = parents_sort[num_replace:] + offspring_sort[population_size-num_replace:]
+    new_generation_scores = parents_scores_sort[num_replace:] + offspring_scores_sort[population_size-num_replace:]
+    best_score = max(new_generation_scores)
+    generation_fitness_mean.append(np.mean(new_generation_scores))
+    generation_fitness_std.append(np.std(new_generation_scores))
+    population = new_generation
+
+
+end_time = time.time()
+print("time: ", end_time - start_time, "\n")
+
+# save mean and std in a file
+fitness_results = pd.DataFrame({"mean": generation_fitness_mean, "std": generation_fitness_std})
+fitness_results.to_csv("results/fitness_mean_std.csv", index=False)
+
+
+# save last generation in a file
+population_json = {}
+for i in range(population_size):
+    individual_json = []
+    for j in range(max_number_steps):
+        individual_json.append(population[i][j].as_json()) 
+    population_json[i] = individual_json
+    with open(f'results/last_generation/last_generation_{i: 03}.json', "a") as f:
+        json.dump(population_json[i], f, indent=2)
+
+
+# for read last generation from a  file:
+"""
+read_population = []
+for i in range(population_size):
+    auxiliar1=[]
+    auxiliar2=[]
+    with open(f'results/last_generation/last_generation_{i: 03}.json', 'r') as f:
+        auxiliar1=json.load(f)
+    for j in range(max_number_steps):
+        auxiliar2.append(Action.from_json(auxiliar1[i]))
+    read_population.append(auxiliar2)
+"""
+
+# Final scores:
+final_scores = pd.DataFrame({"scores": new_generation_scores})
+final_scores.to_csv("results/last_generation_scores.csv")
+
+print("Scores from last generation: \n", new_generation_scores)
 
 
 # Best sequence
-best_sequence = population[0]
-best_score = new_generation_scores[0]
+best_sequence_index = np.argmax(new_generation_scores)
+best_sequence = new_generation[best_sequence_index]
+best_score = new_generation_scores[best_sequence_index]
 
-print("Best sequence: ", best_sequence)
+print("Best sequence: \n", best_sequence)
 print("Best sequence score: ", best_score)
 
-#final_scores = [fitness_eval(individual, env.reset(), goal) for individual in population]
 
+# Codigo juguete - ignorar
+"""
+popu9json=[]
+for i in range(30):
+    popu9json.append(population[9][i].as_json())
+
+with open("file.json", 'w') as f:
+    json.dump(popu9json, f, indent=2)
+
+with open("file.json", 'r') as f:
+    score = json.load(f)
+
+reconstruido=[]
+for i in range(30):
+    reconstruido.append(Action.from_json(score[i]))
+"""
