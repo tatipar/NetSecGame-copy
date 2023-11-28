@@ -200,7 +200,7 @@ all_actions_by_type = get_all_actions_by_type(all_actions)
 
 ## GA parameters
 population_size = 100
-num_generations = 500
+num_generations = 5
 
 # crossover parameters
 select_parents_with_replacement = True
@@ -218,25 +218,20 @@ num_replace = 30
 
 # Initialize population
 population = [[random.choice(all_actions) for _ in range(max_number_steps)] for _ in range(population_size)]
-population_init_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
-
-generation_fitness_mean = []
-generation_fitness_std = []
-
-generation_fitness_mean.append(np.mean(population_init_scores))
-generation_fitness_std.append(np.std(population_init_scores))
 
 
 # Generations
 start_time = time.time()
 
 generation = 0
-best_score = max(population_init_scores)
+best_score = 0
+
+generation_fitness_mean = []
+generation_fitness_std = []
+
 while (generation < num_generations) and (best_score < 100000):
-    generation += 1
     new_generation = []
     offspring = []
-    generation_fitness = []
     popu_crossover = population.copy()
     for j in range(int(population_size/2)):
         # cross-over
@@ -271,13 +266,19 @@ while (generation < num_generations) and (best_score < 100000):
     new_generation = parents_sort[num_replace:] + offspring_sort[population_size-num_replace:]
     new_generation_scores = parents_scores_sort[num_replace:] + offspring_scores_sort[population_size-num_replace:]
     best_score = max(new_generation_scores)
-    generation_fitness_mean.append(np.mean(new_generation_scores))
-    generation_fitness_std.append(np.std(new_generation_scores))
+    if generation == 0:
+        generation_fitness_mean.append(np.mean(parents_scores))
+        generation_fitness_std.append(np.std(parents_scores))
+    else:
+        generation_fitness_mean.append(np.mean(new_generation_scores))
+        generation_fitness_std.append(np.std(new_generation_scores))
     population = new_generation
+    generation += 1
 
 
 end_time = time.time()
 print("time: ", end_time - start_time, "\n")
+print("generation: ", generation)
 
 # save mean and std in a file
 fitness_results = pd.DataFrame({"mean": generation_fitness_mean, "std": generation_fitness_std})
@@ -291,7 +292,7 @@ for i in range(population_size):
     for j in range(max_number_steps):
         individual_json.append(population[i][j].as_json()) 
     population_json[i] = individual_json
-    with open(f'results/last_generation/last_generation_{i: 03}.json', "a") as f:
+    with open(f'results/last_generation/last_generation_{i:03}.json', "a") as f:
         json.dump(population_json[i], f, indent=2)
 
 
@@ -301,16 +302,16 @@ read_population = []
 for i in range(population_size):
     auxiliar1=[]
     auxiliar2=[]
-    with open(f'results/last_generation/last_generation_{i: 03}.json', 'r') as f:
+    with open(f'results/last_generation/last_generation_{i:03}.json', 'r') as f:
         auxiliar1=json.load(f)
     for j in range(max_number_steps):
-        auxiliar2.append(Action.from_json(auxiliar1[i]))
+        auxiliar2.append(Action.from_json(auxiliar1[j]))
     read_population.append(auxiliar2)
 """
 
 # Final scores:
-final_scores = pd.DataFrame({"scores": new_generation_scores})
-final_scores.to_csv("results/last_generation_scores.csv")
+final_scores = pd.DataFrame({"ind_id": np.arange(population_size), "scores": new_generation_scores})
+final_scores.to_csv("results/last_generation_scores.csv", index=False)
 
 print("Scores from last generation: \n", new_generation_scores)
 
@@ -324,19 +325,3 @@ print("Best sequence: \n", best_sequence)
 print("Best sequence score: ", best_score)
 
 
-# Codigo juguete - ignorar
-"""
-popu9json=[]
-for i in range(30):
-    popu9json.append(population[9][i].as_json())
-
-with open("file.json", 'w') as f:
-    json.dump(popu9json, f, indent=2)
-
-with open("file.json", 'r') as f:
-    score = json.load(f)
-
-reconstruido=[]
-for i in range(30):
-    reconstruido.append(Action.from_json(score[i]))
-"""
