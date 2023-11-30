@@ -125,8 +125,8 @@ def fitness_eval_v2(individual, observation, goal):
     Finally, actions that do not change the state and are not valid are penalized.
     A "good action" is an action that changes the state (not necessarily a "valid" action).
     """
-    num_good_actions = 0
-    num_bad_actions = 0
+    #num_good_actions = 0
+    #num_bad_actions = 0
     reward = 0
     reward_goal = 0
     current_state = observation.state
@@ -136,28 +136,28 @@ def fitness_eval_v2(individual, observation, goal):
         new_state = observation.state
         if current_state != new_state:
             reward += 10
-            num_good_actions += 1
+            #num_good_actions += 1
         else:
             if individual[i] in valid_actions:
                 reward += 0
             else:
                 reward += -100
-                num_bad_actions += 1
+                #num_bad_actions += 1
         current_state = observation.state
         if observation.info != {} and observation.info["end_reason"] == "goal_reached":
             reward_goal = 10000
             break
     final_reward = reward + reward_goal
     num_steps = env.timestamp
-    div_aux = num_steps - num_good_actions + num_bad_actions
-    if div_aux == 0:
+    #div_aux = num_steps - num_good_actions + num_bad_actions
+    #if div_aux == 0:
         # i.e. when num_steps == num_good_actions and num_bad_actions == 0
         # if num_bad_actions > 0, then num_steps + num_bad_actions != num_good_actions because num_steps > num_good_actions
-        div = num_steps
-    else:
-        div = div_aux
+    #    div = num_steps
+    #else:
+    #    div = div_aux
     if final_reward >= 0:
-        return final_reward / div
+        return final_reward / num_steps #div
     else:
         return final_reward
 
