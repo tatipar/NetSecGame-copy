@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import copy
 import json
+import csv
 #import argparse
 from env.network_security_game import NetworkSecurityEnvironment
 #from agents.random.random_agent import RandomAgent
@@ -92,6 +93,7 @@ def fitness_eval_v1(individual, observation, goal):
     """
     num_good_actions = 0
     reward = 0
+    reward_goal = 0
     current_state = observation.state
     for i in range(len(individual)):
         valid_actions = generate_valid_actions(current_state)
@@ -106,12 +108,14 @@ def fitness_eval_v1(individual, observation, goal):
         else:
             reward += -100
         current_state = observation.state
-    if observation.info["end_reason"]=="goal_reached":
-        reward += 100000
-    if reward >= 0:
-        return reward * num_good_actions
+        if observation.info != {} and observation.info["end_reason"]=="goal_reached":
+            reward_goal = 10000
+            break
+    final_reward = reward + reward_goal
+    if final_reward >= 0:
+        return final_reward / num_good_actions
     else:
-        return reward
+        return final_reward
 
     
 def fitness_eval_v2(individual, observation, goal): 
@@ -119,10 +123,11 @@ def fitness_eval_v2(individual, observation, goal):
     This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
     Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
     Finally, actions that do not change the state and are not valid are penalized.
-    A "good action" is an action that changes the state (not necessarily a valid action).
+    A "good action" is an action that changes the state (not necessarily a "valid" action).
     """
     num_good_actions = 0
     reward = 0
+    reward_goal = 0
     current_state = observation.state
     for i in range(len(individual)):
         valid_actions = generate_valid_actions(current_state)
@@ -137,12 +142,14 @@ def fitness_eval_v2(individual, observation, goal):
             else:
                 reward += -100
         current_state = observation.state
-    if observation.info["end_reason"]=="goal_reached":
-        reward += 100000
-    if reward >= 0:
-        return reward * num_good_actions
+        if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+            reward_goal = 10000
+            break
+    final_reward = reward + reward_goal
+    if final_reward >= 0:
+        return final_reward / num_good_actions
     else:
-        return reward
+        return final_reward
 
     
 def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True):
@@ -200,7 +207,7 @@ all_actions_by_type = get_all_actions_by_type(all_actions)
 
 ## GA parameters
 population_size = 100
-num_generations = 5
+num_generations = 500
 
 # crossover parameters
 select_parents_with_replacement = True
@@ -226,66 +233,62 @@ start_time = time.time()
 generation = 0
 best_score = 0
 
-generation_fitness_mean = []
-generation_fitness_std = []
+try:
+    while (generation < num_generations) and (best_score < 2500):
+        new_generation = []
+        offspring = []
+        popu_crossover = population.copy()
+        for j in range(int(population_size/2)):
+            # cross-over
+            if j == 0 or select_parents_with_replacement:
+                pass
+            else:
+                popu_crossover.remove(parent1)
+                popu_crossover.remove(parent2)
+            parent1, parent2 = choose_parents(popu_crossover, goal, num_per_tournament, True)
+            child1, child2 = crossover_operator(parent1, parent2, num_points, cross_prob)
+            # mutation
+            if random.random() < prob_parameter_mutation:
+                child1 = mutation_operator_by_parameter(child1, all_actions_by_type, mutation_prob)
+                child2 = mutation_operator_by_parameter(child2, all_actions_by_type, mutation_prob)
+            else:
+                child1 = mutation_operator_by_action(child1, all_actions, mutation_prob)
+                child2 = mutation_operator_by_action(child2, all_actions, mutation_prob)
+            offspring.append(child1)
+            offspring.append(child2)
+        # steady-state
+        # parents
+        parents_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
+        best_indices_parents = np.argsort(parents_scores)[::][:population_size] # min to max fitness (higher is better)
+        parents_sort = [population[i] for i in best_indices_parents]
+        parents_scores_sort = [parents_scores[i] for i in best_indices_parents]
+        # offspring
+        offspring_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in offspring]
+        best_indices_offspring = np.argsort(offspring_scores)[::][:population_size] # min to max fitness (higher is better)
+        offspring_sort = [offspring[i] for i in best_indices_offspring] 
+        offspring_scores_sort = [offspring_scores[i] for i in best_indices_offspring] 
+        # new generation
+        new_generation = parents_sort[num_replace:] + offspring_sort[population_size-num_replace:]
+        new_generation_scores = parents_scores_sort[num_replace:] + offspring_scores_sort[population_size-num_replace:]
+        best_score = max(new_generation_scores)
+        with open('results/fitness_mean_std.csv', 'a', newline='') as partial_file:
+            writer_csv = csv.writer(partial_file)
+            if generation == 0:
+                writer_csv.writerow([np.mean(parents_scores), np.std(parents_scores)])
+            else:
+                writer_csv.writerow([np.mean(new_generation_scores), np.std(new_generation_scores)])
+        population = new_generation
+        generation += 1
 
-while (generation < num_generations) and (best_score < 100000):
-    new_generation = []
-    offspring = []
-    popu_crossover = population.copy()
-    for j in range(int(population_size/2)):
-        # cross-over
-        if j == 0 or select_parents_with_replacement:
-            pass
-        else:
-            popu_crossover.remove(parent1)
-            popu_crossover.remove(parent2)
-        parent1, parent2 = choose_parents(popu_crossover, goal, num_per_tournament, True)
-        child1, child2 = crossover_operator(parent1, parent2, num_points, cross_prob)
-        # mutation
-        if random.random() < prob_parameter_mutation:
-            child1 = mutation_operator_by_parameter(child1, all_actions_by_type, mutation_prob)
-            child2 = mutation_operator_by_parameter(child2, all_actions_by_type, mutation_prob)
-        else:
-            child1 = mutation_operator_by_action(child1, all_actions, mutation_prob)
-            child2 = mutation_operator_by_action(child2, all_actions, mutation_prob)
-        offspring.append(child1)
-        offspring.append(child2)
-    # steady-state
-    # parents
-    parents_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
-    best_indices_parents = np.argsort(parents_scores)[::][:population_size] # min to max fitness (higher is better)
-    parents_sort = [population[i] for i in best_indices_parents]
-    parents_scores_sort = [parents_scores[i] for i in best_indices_parents]
-    # offspring
-    offspring_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in offspring]
-    best_indices_offspring = np.argsort(offspring_scores)[::][:population_size] # min to max fitness (higher is better)
-    offspring_sort = [offspring[i] for i in best_indices_offspring] 
-    offspring_scores_sort = [offspring_scores[i] for i in best_indices_offspring] 
-    # new generation
-    new_generation = parents_sort[num_replace:] + offspring_sort[population_size-num_replace:]
-    new_generation_scores = parents_scores_sort[num_replace:] + offspring_scores_sort[population_size-num_replace:]
-    best_score = max(new_generation_scores)
-    if generation == 0:
-        generation_fitness_mean.append(np.mean(parents_scores))
-        generation_fitness_std.append(np.std(parents_scores))
-    else:
-        generation_fitness_mean.append(np.mean(new_generation_scores))
-        generation_fitness_std.append(np.std(new_generation_scores))
-    population = new_generation
-    generation += 1
-
+except Exception as e:
+        print(f"Error: {e}")
 
 end_time = time.time()
 print("time: ", end_time - start_time, "\n")
 print("generation: ", generation)
 
-# save mean and std in a file
-fitness_results = pd.DataFrame({"mean": generation_fitness_mean, "std": generation_fitness_std})
-fitness_results.to_csv("results/fitness_mean_std.csv", index=False)
 
-
-# save last generation in a file
+# save last generation in files (one file per individual)
 population_json = {}
 for i in range(population_size):
     individual_json = []
@@ -318,7 +321,7 @@ print("Scores from last generation: \n", new_generation_scores)
 
 # Best sequence
 best_sequence_index = np.argmax(new_generation_scores)
-best_sequence = new_generation[best_sequence_index]
+best_sequence = population[best_sequence_index]
 best_score = new_generation_scores[best_sequence_index]
 
 print("Best sequence: \n", best_sequence)
