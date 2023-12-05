@@ -117,7 +117,7 @@ def fitness_eval_v1(individual, observation, goal):
     else:
         return final_reward
 
-    
+
 def fitness_eval_v2(individual, observation, goal): 
     """
     This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
@@ -162,6 +162,47 @@ def fitness_eval_v2(individual, observation, goal):
         return final_reward
 
     
+def fitness_eval_v3(individual, observation, goal): 
+    """
+    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+    Finally, actions that do not change the state and are not valid are penalized.
+    A "good action" is an action that changes the state (not necessarily a "valid" action).
+    """
+    i = 0
+    num_good_actions = 0
+    num_boring_actions = 0
+    num_bad_actions = 0
+    reward = 0
+    reward_goal = 0
+    current_state = observation.state
+    while i < len(individual) and not observation.done:
+        valid_actions = generate_valid_actions(current_state)
+        observation = env.step(individual[i])
+        new_state = observation.state
+        if current_state != new_state:
+            reward += 10
+            num_good_actions += 1
+        else:
+            if individual[i] in valid_actions:
+                reward += -20
+                num_boring_actions += 1
+            else:
+                reward += -100
+                num_bad_actions += 1
+        current_state = observation.state
+        i += 1
+    num_steps = env.timestamp
+    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+        reward_goal = 10000
+    final_reward = reward + reward_goal
+    if final_reward >= 0:
+        return_reward = final_reward / num_good_actions
+    else:
+        return_reward = final_reward 
+    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
+    
+
 def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True):
     """ Tournament selection """
     from_population = population.copy()
@@ -170,7 +211,8 @@ def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True
         options = []
         for _ in range(num_per_tournament):
             options.append(random.choice(from_population))
-        chosen.append(max(options, key=lambda x:fitness_eval_v2(x,env.reset(),goal)))
+        chosen.append(max(options, key=lambda x:fitness_eval_v3(x,env.reset(),goal)[0])) # add [0] because fitness_eval_v3 returns a tuple
+        #chosen.append(max(options, key=lambda x:fitness_eval_v2(x,env.reset(),goal)))
         if i==0 and are_parents_diff:
             from_population.remove(chosen[0])
     return chosen[0], chosen[1]
@@ -268,25 +310,36 @@ try:
             offspring.append(child2)
         # steady-state
         # parents
-        parents_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
-        best_indices_parents = np.argsort(parents_scores)[::][:population_size] # min to max fitness (higher is better)
+        #parents_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in population]
+        #best_indices_parents = np.argsort(parents_scores)[::][:population_size] # min to max fitness (higher is better)
+        parents_scores = np.array([fitness_eval_v3(individual, env.reset(), goal) for individual in population])
+        best_indices_parents = np.argsort(parents_scores, axis=0)[:,0] # min to max fitness (higher is better)
         parents_sort = [population[i] for i in best_indices_parents]
-        parents_scores_sort = [parents_scores[i] for i in best_indices_parents]
+        parents_scores_sort = np.array([parents_scores[i] for i in best_indices_parents])
         # offspring
-        offspring_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in offspring]
-        best_indices_offspring = np.argsort(offspring_scores)[::][:population_size] # min to max fitness (higher is better)
-        offspring_sort = [offspring[i] for i in best_indices_offspring] 
-        offspring_scores_sort = [offspring_scores[i] for i in best_indices_offspring] 
+        #offspring_scores = [fitness_eval_v2(individual, env.reset(), goal) for individual in offspring]
+        #best_indices_offspring = np.argsort(offspring_scores)[::][:population_size] # min to max fitness (higher is better)
+        offspring_scores = np.array([fitness_eval_v3(individual, env.reset(), goal) for individual in offspring])
+        best_indices_offspring = np.argsort(offspring_scores, axis=0)[:,0] # min to max fitness (higher is better)
+        offspring_sort = [offspring[i] for i in best_indices_offspring]
+        offspring_scores_sort = np.array([offspring_scores[i] for i in best_indices_offspring]) 
         # new generation
         new_generation = parents_sort[num_replace:] + offspring_sort[population_size-num_replace:]
-        new_generation_scores = parents_scores_sort[num_replace:] + offspring_scores_sort[population_size-num_replace:]
-        best_score = max(new_generation_scores)
-        with open('results/fitness_mean_std.csv', 'a', newline='') as partial_file:
+        new_generation_scores = np.concatenate((parents_scores_sort[num_replace:], offspring_scores_sort[population_size-num_replace:]), axis=0)
+        best_score = max(new_generation_scores[:,0])
+        if generation == 0:
+            metrics = parents_scores
+        else:
+            metrics = new_generation_scores
+        metrics_mean = np.mean(metrics, axis=0)
+        metrics_std = np.std(metrics, axis=0)
+        # save mean and std scores
+        with open('results/metrics_mean.csv', 'a', newline='') as partial_file:
             writer_csv = csv.writer(partial_file)
-            if generation == 0:
-                writer_csv.writerow([np.mean(parents_scores), np.std(parents_scores)])
-            else:
-                writer_csv.writerow([np.mean(new_generation_scores), np.std(new_generation_scores)])
+            writer_csv.writerow(metrics_mean)
+        with open('results/metrics_std.csv', 'a', newline='') as partial_file:
+            writer_csv = csv.writer(partial_file)
+            writer_csv.writerow(metrics_std)
         population = new_generation
         generation += 1
 
@@ -323,18 +376,22 @@ for i in range(population_size):
 """
 
 # Final scores:
-final_scores = pd.DataFrame({"ind_id": np.arange(population_size), "scores": new_generation_scores})
+final_scores = pd.DataFrame(new_generation_scores, columns=["fitness", "good_actions", "boring_actions", "bad_actions", "num_steps"])
 final_scores.to_csv("results/last_generation_scores.csv", index=False)
 
-print("Scores from last generation: \n", new_generation_scores)
+
+print("Scores from last generation: \n", np.array(new_generation_scores))
 
 
 # Best sequence
-best_sequence_index = np.argmax(new_generation_scores)
+best_sequence_index = np.argmax(new_generation_scores[:,0])
 best_sequence = population[best_sequence_index]
 best_score = new_generation_scores[best_sequence_index]
 
-print("Best sequence: \n", best_sequence)
-print("Best sequence score: ", best_score)
+print("Best sequence: \n")
+for i in range(max_number_steps):
+    print(best_sequence[i])
+
+print("\nBest sequence score: ", best_score)
 
 

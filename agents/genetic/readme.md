@@ -57,7 +57,7 @@ Parents and offspring are sorted by their fitness scores, and then a steady-stat
 ### Fitness Function
 To evaluate each individual, the following is considered:
 - A reward is given when a changing state is observed, no matter if the action is valid or not (e.g. FindServices on a host before performing the corresponding ScanNetwork is "invalid", but possible and the state will probably change, so it is rewarded). This is considered a "good action".
-- If the state does not change but the action is "valid", it does not contribute to the reward.
+- If the state does not change but the action is "valid", it does not contribute to the reward (or it receives a slight penalty).
 - Actions that do not change the state and are "invalid" are penalized. These are considered "bad actions".
 - If an individual reaches the goal, it is rewarded with a big reward.
 - The final reward is divided by a factor to minimize the number of steps.
