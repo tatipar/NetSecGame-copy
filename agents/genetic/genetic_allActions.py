@@ -18,6 +18,7 @@ from env.network_security_game import NetworkSecurityEnvironment
 from env.game_components import Action, ActionType #, IP, Data, Network, Service
 
 
+
 def generate_valid_actions(state):
     # (function copied from RandomAgent)
     valid_actions = set()
@@ -162,7 +163,99 @@ def fitness_eval_v2(individual, observation, goal):
         return final_reward
 
     
-def fitness_eval_v3(individual, observation, goal): 
+def fitness_eval_v01(individual, observation, goal): 
+    """
+    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+    Finally, actions that do not change the state and are not valid are penalized.
+    A "good action" is an action that changes the state (not necessarily a "valid" action).
+    """
+    i = 0
+    num_good_actions = 0
+    num_boring_actions = 0
+    num_bad_actions = 0
+    reward = 0
+    reward_goal = 0
+    current_state = observation.state
+    while i < len(individual) and not observation.done:
+        valid_actions = generate_valid_actions(current_state)
+        observation = env.step(individual[i])
+        new_state = observation.state
+        if current_state != new_state:
+            reward += 10
+            num_good_actions += 1
+        else:
+            if individual[i] in valid_actions:
+                reward += 0
+                num_boring_actions += 1
+            else:
+                reward += -100
+                num_bad_actions += 1
+        current_state = observation.state
+        i += 1
+    num_steps = env.timestamp
+    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+        reward_goal = 10000
+    final_reward = reward + reward_goal
+    if final_reward >= 0:
+        return_reward = final_reward / num_good_actions
+    else:
+        return_reward = final_reward 
+    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
+    
+
+def fitness_eval_v02(individual, observation, goal): 
+    """
+    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+    Finally, actions that do not change the state and are not valid are penalized.
+    A "good action" is an action that changes the state (not necessarily a "valid" action).
+    """
+    i = 0
+    num_good_actions = 0
+    num_boring_actions = 0
+    num_bad_actions = 0
+    reward = 0
+    reward_goal = 0
+    current_state = observation.state
+    while i < len(individual) and not observation.done:
+        valid_actions = generate_valid_actions(current_state)
+        observation = env.step(individual[i])
+        new_state = observation.state
+        if current_state != new_state:
+            reward += 10
+            num_good_actions += 1
+        else:
+            if individual[i] in valid_actions:
+                reward += 0
+                num_boring_actions += 1
+            else:
+                reward += -100
+                num_bad_actions += 1
+        current_state = observation.state
+        i += 1
+        #print(reward)
+    num_steps = env.timestamp
+    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+        reward_goal = 10000
+    final_reward = reward + reward_goal
+    div_aux = num_steps - num_good_actions + num_bad_actions
+    #print(reward,reward_goal,num_steps,div_aux)
+    if div_aux == 0:
+        # i.e. when num_steps == num_good_actions and num_bad_actions == 0
+        # if num_bad_actions > 0, then num_steps + num_bad_actions != num_good_actions because num_steps > num_good_actions
+        div = num_steps
+    else:
+        div = div_aux
+    if final_reward >= 0:
+        return_reward = final_reward / div
+    else:
+        return_reward = final_reward 
+    #print(return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps)
+    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
+    
+
+def fitness_eval_v03(individual, observation, goal): 
     """
     This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
     Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
@@ -203,7 +296,7 @@ def fitness_eval_v3(individual, observation, goal):
     return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
     
 
-def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True):
+def choose_parents(population, goal, fitness_func, num_per_tournament=2, are_parents_diff=True):
     """ Tournament selection """
     from_population = population.copy()
     chosen = []
@@ -211,7 +304,7 @@ def choose_parents(population, goal, num_per_tournament=2, are_parents_diff=True
         options = []
         for _ in range(num_per_tournament):
             options.append(random.choice(from_population))
-        chosen.append(max(options, key=lambda x:fitness_eval_v3(x,env.reset(),goal)[0])) # add [0] because fitness_eval_v3 returns a tuple
+        chosen.append(max(options, key=lambda x:fitness_func(x,env.reset(),goal)[0])) # add [0] because fitness_eval_v3 returns a tuple
         #chosen.append(max(options, key=lambda x:fitness_eval_v2(x,env.reset(),goal)))
         if i==0 and are_parents_diff:
             from_population.remove(chosen[0])
@@ -297,7 +390,7 @@ try:
             else:
                 popu_crossover.remove(parent1)
                 popu_crossover.remove(parent2)
-            parent1, parent2 = choose_parents(popu_crossover, goal, num_per_tournament, True)
+            parent1, parent2 = choose_parents(popu_crossover, goal, fitness_func, num_per_tournament, True)
             child1, child2 = crossover_operator(parent1, parent2, num_points, cross_prob)
             # mutation
             if random.random() < prob_parameter_mutation:
