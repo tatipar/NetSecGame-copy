@@ -1,7 +1,7 @@
 import sys
 from os import path
 # script:
-sys.path.append( path.dirname(path.dirname( path.dirname( path.abspath(__file__) ) ) ))
+sys.path.append( path.dirname(path.dirname( path.dirname(path.dirname( path.abspath(__file__) ) ) )))
 # terminal:
 #sys.path.append(path.dirname(path.dirname(path.abspath(''))))
 
@@ -18,6 +18,68 @@ from env.network_security_game import NetworkSecurityEnvironment
 from env.game_components import Action, ActionType #, IP, Data, Network, Service
 
 
+POPULATION_SIZE = eval(sys.argv[1])
+print("POPULATION_SIZE = ", POPULATION_SIZE)
+
+NUM_GENERATIONS = eval(sys.argv[2])
+print("NUM_GENERATIONS = ", NUM_GENERATIONS)
+
+# parents selection parameters
+TOURNAMENT = sys.argv[3].lower()=="true"
+if TOURNAMENT:
+    print("PARENTS SELECTION = tournament")
+else:
+    print("PARENTS SELECTION = roulette wheel")
+
+REPLACEMENT = sys.argv[4].lower()=="true"
+print("REPLACEMENT = ", REPLACEMENT)
+
+NUM_PER_TOURNAMENT = eval(sys.argv[5])
+print("NUM_PER_TOURNAMENT = ", NUM_PER_TOURNAMENT)
+
+# crossover parameters
+N_POINTS = sys.argv[6].lower()=="true"
+if N_POINTS:
+    print("CROSSOVER = N-points")
+else:
+    print("CROSSOVER = uniform")
+
+NUM_POINTS = eval(sys.argv[7])
+print("NUM_POINTS = ", NUM_POINTS)
+
+CROSS_PROB = eval(sys.argv[8])
+print("CROSS_PROB = ", CROSS_PROB)
+
+P_VALUE = eval(sys.argv[9])
+print("P_VALUE = ", P_VALUE)
+
+# mutation parameters
+PARAMETER_MUTATION = sys.argv[10].lower()=="true"
+if PARAMETER_MUTATION:
+    print("MUTATION = by parameter")
+else:
+    print("MUTATION = by action")
+
+MUTATION_PROB = eval(sys.argv[11])
+print("MUTATION_PROB = ", MUTATION_PROB)
+
+# survivor selection parameters
+STEADY_STATE = sys.argv[12].lower()=="true"
+if STEADY_STATE:
+    print("SURVIVOR SELECTION = steady-state")
+else:
+    print("SURVIVOR SELECTION = random")
+
+NUM_REPLACE = eval(sys.argv[13])
+print("NUM_REPLACE = ", NUM_REPLACE)
+
+
+# paths
+PATH_GENETIC = str(sys.argv[14])
+print("PATH_GENETIC ", PATH_GENETIC)
+
+PATH_RESULTS = str(sys.argv[15])
+print("PATH_RESULTS ", PATH_RESULTS)
 
 def generate_valid_actions(state):
     # (function copied from RandomAgent)
@@ -400,10 +462,12 @@ def get_all_actions_by_type(all_actions):
     all_actions_by_type["ActionType.ExfiltrateData"] = ExfiltrateData_list
     return all_actions_by_type
 
+################################################################################################################
 
+start_time = time.time()
 
 ## The environment is initialized
-env = NetworkSecurityEnvironment("netsecenv-task.yaml")
+env = NetworkSecurityEnvironment(path.join(PATH_GENETIC,"netsecenv-task.yaml"))
 
 ## Info from environment
 goal = copy.deepcopy(env._goal_conditions)
@@ -415,22 +479,27 @@ all_actions_by_type = get_all_actions_by_type(all_actions)
 
 
 ## GA parameters
-population_size = 100
-num_generations = 500
+population_size = POPULATION_SIZE
+num_generations = NUM_GENERATIONS
+
+# parents selection parameters
+tournament = TOURNAMENT
+select_parents_with_replacement = REPLACEMENT
+num_per_tournament = NUM_PER_TOURNAMENT
 
 # crossover parameters
-select_parents_with_replacement = True
-num_per_tournament = 4
-num_points = 3
-cross_prob = 0.8
-p_value = 0.5
+Npoints = N_POINTS
+num_points = NUM_POINTS
+cross_prob = CROSS_PROB
+p_value = P_VALUE
 
 # mutation parameters
-#prob_parameter_mutation = 0.5
-mutation_prob = 0.1
+parameter_mutation = PARAMETER_MUTATION
+mutation_prob = MUTATION_PROB
 
-# steady-state parameters
-num_replace = 30
+# survivor selection parameters
+steady_state = STEADY_STATE
+num_replace = NUM_REPLACE
 
 
 # Initialize population
@@ -438,10 +507,9 @@ population = [[random.choice(all_actions) for _ in range(max_number_steps)] for 
 
 
 # Generations
-start_time = time.time()
 
 generation = 0
-#best_score = 0
+best_score = 0
 
 #tolerance = 20
 #last_scores = [1.0] + [None] * (tolerance-1)
@@ -451,7 +519,9 @@ try:
         offspring = []
         popu_crossover = population.copy()
         parents_scores = np.array([fitness_eval_v02(individual, env.reset(), goal) for individual in population])
-        best_score = max(parents_scores[:,0])
+        index_best_score = np.argmax(parents_scores[:,0])
+        best_score_complete = parents_scores[index_best_score, :]
+        best_score = best_score_complete[0]
         #if generation < tolerance:
         #    last_scores[generation] = best_score
         #else:
@@ -459,11 +529,14 @@ try:
         #    last_scores.append(best_score)
         metrics_mean = np.mean(parents_scores, axis=0)
         metrics_std = np.std(parents_scores, axis=0)
-        # save mean and std scores
-        with open('results/metrics_mean.csv', 'a', newline='') as partial_file:
+        # save best, mean and std scores
+        with open(path.join(PATH_RESULTS, 'best_scores.csv'), 'a', newline='') as partial_file:
+            writer_csv = csv.writer(partial_file)
+            writer_csv.writerow(best_score_complete)
+        with open(path.join(PATH_RESULTS, 'metrics_mean.csv'), 'a', newline='') as partial_file:
             writer_csv = csv.writer(partial_file)
             writer_csv.writerow(metrics_mean)
-        with open('results/metrics_std.csv', 'a', newline='') as partial_file:
+        with open(path.join(PATH_RESULTS, 'metrics_std.csv'), 'a', newline='') as partial_file:
             writer_csv = csv.writer(partial_file)
             writer_csv.writerow(metrics_std)
         for j in range(int(population_size/2)):
@@ -492,6 +565,7 @@ try:
             offspring.append(child1)
             offspring.append(child2)
         offspring_scores = np.array([fitness_eval_v02(individual, env.reset(), goal) for individual in offspring])
+        # survivor selection
         if steady_state:
             new_generation = steady_state_selection(population, parents_scores, offspring, offspring_scores, num_replace)
         else:
@@ -502,52 +576,44 @@ try:
 except Exception as e:
         print(f"Error: {e}")
 
-end_time = time.time()
-print("time: ", end_time - start_time, "\n")
-print("generation: ", generation)
+
+# calculate scores for last generation, and update files:
+last_generation_scores = np.array([fitness_eval_v02(individual, env.reset(), goal) for individual in population])
+index_best_score = np.argmax(last_generation_scores[:,0])
+best_score_complete = last_generation_scores[index_best_score, :]
+metrics_mean = np.mean(last_generation_scores, axis=0)
+metrics_std = np.std(last_generation_scores, axis=0)
+# save best, mean and std scores from last generation
+with open(path.join(PATH_RESULTS, 'best_scores.csv'), 'a', newline='') as partial_file:
+    writer_csv = csv.writer(partial_file)
+    writer_csv.writerow(best_score_complete)
+with open(path.join(PATH_RESULTS, 'metrics_mean.csv'), 'a', newline='') as partial_file:
+    writer_csv = csv.writer(partial_file)
+    writer_csv.writerow(metrics_mean)
+with open(path.join(PATH_RESULTS, 'metrics_std.csv'), 'a', newline='') as partial_file:
+    writer_csv = csv.writer(partial_file)
+    writer_csv.writerow(metrics_std)
 
 
-# save last generation in files (one file per individual)
-population_json = {}
-for i in range(population_size):
-    individual_json = []
-    for j in range(max_number_steps):
-        individual_json.append(population[i][j].as_json()) 
-    population_json[i] = individual_json
-    with open(f'results/last_generation/last_generation_{i:03}.json', "a") as f:
-        json.dump(population_json[i], f, indent=2)
+# the best sequence
+best_sequence = population[index_best_score]
+# save the best sequence in file
+best_sequence_json = []
+for j in range(max_number_steps):
+    best_sequence_json.append(best_sequence[j].as_json())
+with open(path.join(PATH_RESULTS,'best_sequence.json'), "a") as f:
+    json.dump(best_sequence_json, f, indent=2)
 
 
-# for read last generation from a  file:
-"""
-read_population = []
-for i in range(population_size):
-    auxiliar1=[]
-    auxiliar2=[]
-    with open(f'results/last_generation/last_generation_{i:03}.json', 'r') as f:
-        auxiliar1=json.load(f)
-    for j in range(max_number_steps):
-        auxiliar2.append(Action.from_json(auxiliar1[j]))
-    read_population.append(auxiliar2)
-"""
+print("\nGeneration = ", generation)
 
-# Final scores:
-final_scores = pd.DataFrame(new_generation_scores, columns=["fitness", "good_actions", "boring_actions", "bad_actions", "num_steps"])
-final_scores.to_csv("results/last_generation_scores.csv", index=False)
-
-
-print("Scores from last generation: \n", np.array(new_generation_scores))
-
-
-# Best sequence
-best_sequence_index = np.argmax(new_generation_scores[:,0])
-best_sequence = population[best_sequence_index]
-best_score = new_generation_scores[best_sequence_index]
-
-print("Best sequence: \n")
+print("\nBest sequence: \n")
 for i in range(max_number_steps):
     print(best_sequence[i])
 
-print("\nBest sequence score: ", best_score)
+print("\nBest sequence score: ", best_score_complete[0])
+
+end_time = time.time()
+print("\ntime: ", end_time - start_time, "\n")
 
 
