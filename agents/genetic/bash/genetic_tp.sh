@@ -7,7 +7,7 @@ POPULATION_SIZE=100
 NUM_GENERATIONS=500
 
 # parents selection parameters
-TOURNAMENT=false # if true: tournament selection, else: roulette wheel selection
+TOURNAMENT=true # if true: tournament selection, else: roulette wheel selection
 REPLACEMENT=true # if true: parents selection with replacement, else: without replacement
 NUM_PER_TOURNAMENT=4
 
@@ -65,6 +65,6 @@ mkdir -p ${PATH_RESULTS}
 
 cd ${PATH_RESULTS}
 
-python3 -u ${PATH_GENETIC}/python/genetic_tp.py ${POPULATION_SIZE} ${NUM_GENERATIONS} ${TOURNAMENT} ${REPLACEMENT} ${NUM_PER_TOURNAMENT} ${N_POINTS} ${NUM_POINTS} ${CROSS_PROB} ${P_VALUE} ${PARAMETER_MUTATION} ${MUTATION_PROB} ${STEADY_STATE} ${NUM_REPLACE} ${PATH_GENETIC} ${PATH_RESULTS} >> results_${PROCESS_ID}_${TIME_MARK}.txt 2>&1
-
+python3 -u ${PATH_GENETIC}/python/genetic_tp.py ${POPULATION_SIZE} ${NUM_GENERATIONS} ${REPLACEMENT} ${NUM_PER_TOURNAMENT} ${N_POINTS} ${NUM_POINTS} ${P_VALUE} ${CROSS_PROB} ${PARAMETER_MUTATION} ${MUTATION_PROB} ${NUM_REPLACE} ${PATH_GENETIC} ${PATH_RESULTS} >> results_${PROCESS_ID}_${TIME_MARK}.txt 2>&1
+#python3 -u ${PATH_GENETIC}/python/genetic_tp.py ${POPULATION_SIZE} ${NUM_GENERATIONS} ${REPLACEMENT} ${num_per_tournament} ${N_POINTS} ${num_points} ${P_VALUE} ${cross_prob} ${PARAMETER_MUTATION} ${mut_prob} ${num_replace} ${PATH_GENETIC} ${PATH_RESULTS} >> ${PATH_RESULTS}/results_$(printf "%02d" "$i").txt 2>&1
 
