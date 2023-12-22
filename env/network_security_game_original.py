@@ -9,7 +9,7 @@ import itertools
 import copy
 from cyst.api.configuration import NodeConfig, RouterConfig, ConnectionConfig, ExploitConfig, FirewallPolicy
 import numpy as np
-#import logging
+import logging
 import os
 from pathlib import Path
 from faker import Faker
@@ -17,13 +17,12 @@ from utils.utils import ConfigParser, store_replay_buffer_in_csv
 
 
 # Set the logging
-#log_filename=Path('env/logs/netsecenv.log')
-#if not log_filename.parent.exists():
-#    os.makedirs(log_filename.parent)
-#logging.basicConfig(filename=log_filename, filemode='w', format='%(asctime)s %(name)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S',level=logging.INFO)
-#logger = logging.getLogger('Netsecenv')
+log_filename=Path('env/logs/netsecenv.log')
+if not log_filename.parent.exists():
+    os.makedirs(log_filename.parent)
+logging.basicConfig(filename=log_filename, filemode='w', format='%(asctime)s %(name)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S',level=logging.INFO)
+logger = logging.getLogger('Netsecenv')
 #logger.setLevel(logging.WARNING)
-
 class NetworkSecurityEnvironment(object):
     """
     Class to manage the whole network security game
@@ -31,7 +30,7 @@ class NetworkSecurityEnvironment(object):
     It presents a env environment to play
     """
     def __init__(self, task_config_file) -> None:
-        ##logger.info("Initializing NetSetGame environment")
+        logger.info("Initializing NetSetGame environment")
         # Prepare data structures for all environment components (to be filled in _process_cyst_config())
         
         # Mapping of IP():host_name (str) of all nodes in the environment
@@ -62,27 +61,27 @@ class NetworkSecurityEnvironment(object):
         self.task_config = ConfigParser(task_config_file)
         
         # Load CYST configuration
-        ##logger.info("Reading from CYST configuration:")
+        logger.info("Reading from CYST configuration:")
         cyst_config = self.task_config.get_scenario()
         self._process_cyst_config(cyst_config)
-        ##logger.info("CYST configuration processed successfully")
+        logger.info("CYST configuration processed successfully")
         
         # Set the seed 
         seed = self.task_config.get_seed('env')
         np.random.seed(seed)
         random.seed(seed)
         self._seed = seed
-        ##logger.info(f'Setting env seed to {seed}')
+        logger.info(f'Setting env seed to {seed}')
         
         # Set maximum number of steps in one episode
         self._max_steps = self.task_config.get_max_steps()
-        ##logger.info(f"\tSetting max steps to {self._max_steps}")
+        logger.info(f"\tSetting max steps to {self._max_steps}")
 
         # Set rewards for goal/detection/step
         self._goal_reward = self.task_config.get_goal_reward()
         self._detection_reward = self.task_config.get_detection_reward()
         self._step_reward = self.task_config.get_step_reward()
-        ##logger.info(f"\tSetting rewards - goal:{self._goal_reward}, detection:{self._detection_reward}, step:{self._step_reward}")
+        logger.info(f"\tSetting rewards - goal:{self._goal_reward}, detection:{self._detection_reward}, step:{self._step_reward}")
 
         # Set the default parameters of all actionss
         # if the values of the actions were updated in the configuration file
@@ -109,7 +108,7 @@ class NetworkSecurityEnvironment(object):
         
         # check if dynamic network and ip adddresses are required
         if self.task_config.get_use_dynamic_addresses():
-            ##logger.info("Dynamic change of the IP and network addresses enabled")
+            logger.info("Dynamic change of the IP and network addresses enabled")
             self._faker_object = Faker()
             Faker.seed(seed)
             self._create_new_network_mapping()
@@ -117,18 +116,17 @@ class NetworkSecurityEnvironment(object):
         # process episodic randomization
         if not self._randomize_goal_every_episode:
             # episodic randomization is not required, randomize once now
-            ##logger.info("Episodic randomization disabled, generating static goal_conditions")
+            logger.info("Episodic randomization disabled, generating static goal_conditions")
             self._goal_conditions = self._generate_win_conditions(self._goal_conditions)
         else:
-            bor=0
-            ##logger.info("Episodic randomization enabled")
+            logger.info("Episodic randomization enabled")
 
         # read if replay buffer should be store on disc
         if self.task_config.get_store_replay_buffer():
-            ##logger.info("Storing of replay buffer enabled")
+            logger.info("Storing of replay buffer enabled")
             self._episode_replay_buffer = []
         else:
-            ##logger.info("Storing of replay buffer disabled")
+            logger.info("Storing of replay buffer disabled")
             self._episode_replay_buffer = None
         
         # CURRENT STATE OF THE GAME - all set to None until self.reset()
@@ -139,7 +137,7 @@ class NetworkSecurityEnvironment(object):
         self._done = None
         # If the episode/action was detected by the defender
         self._detected = None
-        ##logger.info("Environment initialization finished")
+        logger.info("Environment initialization finished")
 
     @property
     def seed(self)->int:
@@ -212,21 +210,20 @@ class NetworkSecurityEnvironment(object):
         known_networks = set()
         controlled_hosts = set()
 
-        ##logger.info('Creating the starting state')
+        logger.info('Creating the starting state')
         # Only for logging
         random_start_position = False
         for controlled_host in self._attacker_start_position['controlled_hosts']:
             if controlled_host == 'random':
                 # Random start
-                ##logger.info('\tStart position of agent is random')
-                ##logger.info(f'\tChoosing from {self.hosts_to_start}')
+                logger.info('\tStart position of agent is random')
+                logger.info(f'\tChoosing from {self.hosts_to_start}')
                 controlled_hosts.add(random.choice(self.hosts_to_start))
-                ##logger.info(f'\t\tMaking agent start in {controlled_hosts}')
+                logger.info(f'\t\tMaking agent start in {controlled_hosts}')
                 random_start_position = True
         if not random_start_position:
-            bor=0
             # Not random start
-            ##logger.info('\tStart position of agent is not random.')
+            logger.info('\tStart position of agent is not random.')
 
         # Be careful. These lines must go outside the 'not random' part of the loop. Because it should be possible
         # to have a random start position, but simultaneously to 'force' a controlled host
@@ -237,7 +234,7 @@ class NetworkSecurityEnvironment(object):
                 controlled_hosts.add(controlled_host)
                 # Add the controlled hosts to the list of known hosts
                 known_hosts = self._attacker_start_position["known_hosts"].union(controlled_hosts)
-                ##logger.info(f'\tThe attacker has control of host {str(controlled_host)}.')
+                logger.info(f'\tThe attacker has control of host {str(controlled_host)}.')
 
         # Extend the known networks with the neighbouring networks
         # This is to solve in the env (and not in the agent) the problem
@@ -252,12 +249,12 @@ class NetworkSecurityEnvironment(object):
                     net_obj.value += 256
                     if net_obj.is_private():
                         ip = components.Network(str(net_obj.ip), net_obj.prefixlen)
-                        ##logger.info(f'\tAdding {ip} to agent')
+                        logger.info(f'\tAdding {ip} to agent')
                         known_networks.add(ip)
                     net_obj.value -= 2*256
                     if net_obj.is_private():
                         ip = components.Network(str(net_obj.ip), net_obj.prefixlen)
-                        ##logger.info(f'\tAdding {ip} to agent')
+                        logger.info(f'\tAdding {ip} to agent')
                         known_networks.add(ip)
                     #return value back to the original
                     net_obj.value += 256
@@ -272,31 +269,31 @@ class NetworkSecurityEnvironment(object):
         """
         Method which analyses win_conditions and randomizes parts if required
         """
-        ##logger.info("Preparing goal conditions")
+        logger.info("Preparing goal conditions")
         updated_win_conditions = {}
         
         # networks
         if win_conditions["known_networks"] == "random":
             updated_win_conditions["known_networks"] = {random.choice(list(self._networks.keys()))}
-            ##logger.info("\tRandomizing networks")
+            logger.info("\tRandomizing networks")
         else:
             updated_win_conditions["known_networks"] = copy.deepcopy(win_conditions["known_networks"])
-        ##logger.info(f"\tGoal known_networks: {updated_win_conditions['known_networks']}")
+        logger.info(f"\tGoal known_networks: {updated_win_conditions['known_networks']}")
         # known_hosts
         if win_conditions["known_hosts"] == "random":
-            ##logger.info("\tRandomizing known_host")
+            logger.info("\tRandomizing known_host")
             updated_win_conditions["known_hosts"] = {random.choice(list(self._ip_to_hostname.keys()))}
         else:
             updated_win_conditions["known_hosts"] = copy.deepcopy(win_conditions["known_hosts"])
-        ##logger.info(f"\tGoal known_hosts: {updated_win_conditions['known_hosts']}")
+        logger.info(f"\tGoal known_hosts: {updated_win_conditions['known_hosts']}")
         
         # controlled_hosts
         if win_conditions["controlled_hosts"] == "random":
-            ##logger.info("\tRandomizing controlled_hots")
+            logger.info("\tRandomizing controlled_hots")
             updated_win_conditions["controlled_hosts"] = {random.choice(list(self._ip_to_hostname.keys()))}
         else:
             updated_win_conditions["controlled_hosts"] = copy.deepcopy(win_conditions["controlled_hosts"])
-        ##logger.info(f"\tGoal controlled_hosts: {updated_win_conditions['controlled_hosts']}")
+        logger.info(f"\tGoal controlled_hosts: {updated_win_conditions['controlled_hosts']}")
         
         # services
         updated_win_conditions["known_services"] = {}
@@ -306,11 +303,11 @@ class NetworkSecurityEnvironment(object):
                 available_services = []
                 for service in self._services[self._ip_to_hostname[host]]:
                     available_services.append(components.Service(service.name, service.type, service.version, service.is_local))
-                ##logger.info(f"\tRandomizing known_services in {host}")
+                logger.info(f"\tRandomizing known_services in {host}")
                 updated_win_conditions["known_services"][host] = random.choice(available_services)
             else:
                 updated_win_conditions["known_services"][host] = copy.deepcopy(win_conditions["known_services"][host])
-        ##logger.info(f"\tGoal known_services: {updated_win_conditions['known_services']}")
+        logger.info(f"\tGoal known_services: {updated_win_conditions['known_services']}")
         
         # data
         # prepare all available data if randomization is needed
@@ -325,10 +322,10 @@ class NetworkSecurityEnvironment(object):
             if isinstance(data_set, str) and data_set.lower() == "random":
                 # From all available data, randomly pick the one that is going to be requested in this host
                 updated_win_conditions["known_data"][host] = {random.choice(list(available_data))}
-                ##logger.info(f"\tRandomizing known_data in {host}")
+                logger.info(f"\tRandomizing known_data in {host}")
             else:
                 updated_win_conditions["known_data"][host] = copy.deepcopy(win_conditions["known_data"][host])
-        ##logger.info(f"\tGoal known_data: {updated_win_conditions['known_data']}")
+        logger.info(f"\tGoal known_data: {updated_win_conditions['known_data']}")
         return updated_win_conditions
        
     def _place_defences(self)->None:
@@ -336,18 +333,18 @@ class NetworkSecurityEnvironment(object):
         Place the defender
         For now only if it is present
         """
-        ##logger.info("\tStoring defender placement")
+        logger.info("\tStoring defender placement")
         defender_type = self.task_config.get_defender_type()
         match defender_type:
             case 'StochasticDefender':
-                ##logger.info(f"\t\tDefender placed as type {defender_type}")
+                logger.info(f"\t\tDefender placed as type {defender_type}")
                 # For now there is only one type of defender
                 self._defender_type = "Stochastic"
             case "NoDefender":
-                ##logger.info("\t\tNo defender present in the environment")
+                logger.info("\t\tNo defender present in the environment")
                 self._defender_type = None
             case "StochasticWithThreshold":
-                ##logger.info(f"\t\tDefender placed as type '{defender_type}'")
+                logger.info(f"\t\tDefender placed as type '{defender_type}'")
                 self._defender_type = "StochasticWithThreshold"
                 self._defender_thresholds = self.task_config.get_defender_thresholds()
                 self._defender_thresholds["tw_size"] = self.task_config.get_defender_tw_size()
@@ -375,14 +372,14 @@ class NetworkSecurityEnvironment(object):
                 exploits.append(o)
 
         def process_node_config(node_obj:NodeConfig) -> None:
-            ##logger.info(f"\tProcessing config of node '{node_obj.id}'")
+            logger.info(f"\tProcessing config of node '{node_obj.id}'")
             #save the complete object
             self._node_objects[node_obj.id] = node_obj
-            ##logger.info(f'\t\tAdded {node_obj.id} to the list of available nodes.')
+            logger.info(f'\t\tAdded {node_obj.id} to the list of available nodes.')
             node_to_id[node_obj.id] = len(node_to_id)
 
             #examine interfaces
-            ##logger.info(f"\t\tProcessing interfaces in node '{node_obj.id}'")
+            logger.info(f"\t\tProcessing interfaces in node '{node_obj.id}'")
             for interface in node_obj.interfaces:
                 net_ip, net_mask = str(interface.net).split("/")
                 net = components.Network(net_ip,int(net_mask))
@@ -391,11 +388,11 @@ class NetworkSecurityEnvironment(object):
                 if net not in self._networks:
                     self._networks[net] = []
                 self._networks[net].append(ip)
-                ##logger.info(f'\t\tAdded network {str(interface.net)} to the list of available nets, with node {node_obj.id}.')
+                logger.info(f'\t\tAdded network {str(interface.net)} to the list of available nets, with node {node_obj.id}.')
 
 
             #services
-            ##logger.info(f"\t\tProcessing services & data in node '{node_obj.id}'")
+            logger.info(f"\t\tProcessing services & data in node '{node_obj.id}'")
             for service in node_obj.passive_services:
                 # Check if it is a candidate for random start
                 # Becareful, it will add all the IPs for this node
@@ -407,7 +404,7 @@ class NetworkSecurityEnvironment(object):
                     self._services[node_obj.id] = []
                 self._services[node_obj.id].append(components.Service(service.type, "passive", service.version, service.local))
                 #data
-                ##logger.info(f"\t\t\tProcessing data in node '{node_obj.id}':'{service.type}' service")
+                logger.info(f"\t\t\tProcessing data in node '{node_obj.id}':'{service.type}' service")
                 try:
                     for data in service.private_data:
                         if node_obj.id not in self._data:
@@ -419,19 +416,19 @@ class NetworkSecurityEnvironment(object):
                     #service does not contain any data
 
         def process_router_config(router_obj:RouterConfig)->None:
-            ##logger.info(f"\tProcessing config of router '{router_obj.id}'")
+            logger.info(f"\tProcessing config of router '{router_obj.id}'")
             # Process a router
             # Add the router to the list of nodes. This goes
             # against CYST definition. Check if we can modify it in CYST
             if router_obj.id.lower() == 'internet':
                 # Ignore the router called 'internet' because it is not a router
                 # in our network
-                ##logger.info("\t\tSkipping the internet router")
+                logger.info("\t\tSkipping the internet router")
                 return False
 
             self._node_objects[router_obj.id] = router_obj
             node_to_id[router_obj.id] = len(node_to_id)
-            ##logger.info(f"\t\tProcessing interfaces in router '{router_obj.id}'")
+            logger.info(f"\t\tProcessing interfaces in router '{router_obj.id}'")
             for interface in r.interfaces:
                 net_ip, net_mask = str(interface.net).split("/")
                 net = components.Network(net_ip,int(net_mask))
@@ -442,7 +439,7 @@ class NetworkSecurityEnvironment(object):
                 self._networks[net].append(ip)
 
             #add Firewall rules
-            ##logger.info(f"\t\tProcessing FW rules in router '{router_obj.id}'")
+            logger.info(f"\t\tProcessing FW rules in router '{router_obj.id}'")
             for tp in router_obj.traffic_processors:
                 for chain in tp.chains:
                     for rule in chain.rules:
@@ -457,13 +454,13 @@ class NetworkSecurityEnvironment(object):
             process_router_config(r)
 
         #connections
-        ##logger.info("\tProcessing connections in the network")
+        logger.info("\tProcessing connections in the network")
         self._connections = np.zeros([len(node_to_id),len(node_to_id)])
         for c in connections:
             if c.src_id != "internet" and c.dst_id != "internet":
                 self._connections[node_to_id[c.src_id],node_to_id[c.dst_id]] = 1
                 #TODO FIX THE INTERNET Node issue in connections
-        ##logger.info("\tProcessing available exploits")
+        logger.info("\tProcessing available exploits")
 
         #exploits
         self._exploits = exploits
@@ -509,13 +506,13 @@ class NetworkSecurityEnvironment(object):
                 if False not in is_private_net_checks: # verify that ALL new networks are still in the private ranges
                     valid_valid_network_mapping = True
             except IndexError as e:
-                ##logger.info(f"Dynamic address sampling failed, re-trying. {e}")
+                logger.info(f"Dynamic address sampling failed, re-trying. {e}")
                 counter_iter +=1
                 if counter_iter > 10:
-                    ##logger.error("Dynamic address failed more than 10 times - stopping.")
+                    logger.error("Dynamic address failed more than 10 times - stopping.")
                     exit(-1)
                 # Invalid IP address boundary
-        ##logger.info(f"New network mapping:{mapping_nets}")
+        logger.info(f"New network mapping:{mapping_nets}")
         # genereate mapping for ips:
         for net,ips in self._networks.items():
             ip_list = list(netaddr.IPNetwork(str(mapping_nets[net])))[1:]
@@ -568,11 +565,9 @@ class NetworkSecurityEnvironment(object):
                 else:
                     found_services = {s for s in self._services[self._ip_to_hostname[host_ip]] if not s.is_local}
             else:
-                bor=0
-                ##logger.info("\tServices not found because host does have any service.")
+                logger.info("\tServices not found because host does have any service.")
         else:
-            bor=0
-            ##logger.info("\tServices not found because target IP does not exists.")
+            logger.info("\tServices not found because target IP does not exists.")
         return found_services
 
     def _get_networks_from_host(self, host_ip)->set:
@@ -596,8 +591,7 @@ class NetworkSecurityEnvironment(object):
                 if self._ip_to_hostname[host_ip] in self._data:
                     data = self._data[self._ip_to_hostname[host_ip]]
         else:
-            bor=0
-            ##logger.info("\t\t\tCan't get data in host. The host is not controlled.")
+            logger.info("\t\t\tCan't get data in host. The host is not controlled.")
         return data
 
     def _execute_action(self, current:components.GameState, action:components.Action)-> components.GameState:
@@ -613,20 +607,20 @@ class NetworkSecurityEnvironment(object):
         next_known_data = copy.deepcopy(current.known_data)
 
         if action.type == components.ActionType.ScanNetwork:
-            ##logger.info(f"\t\tScanning {action.parameters['target_network']}")
+            logger.info(f"\t\tScanning {action.parameters['target_network']}")
             new_ips = set()
             for ip in self._ip_to_hostname.keys(): #check if IP exists
-                ##logger.info(f"\t\tChecking if {ip} in {action.parameters['target_network']}")
+                logger.info(f"\t\tChecking if {ip} in {action.parameters['target_network']}")
                 if str(ip) in netaddr.IPNetwork(str(action.parameters["target_network"])):
-                    ##logger.info(f"\t\t\tAdding {ip} to new_ips")
+                    logger.info(f"\t\t\tAdding {ip} to new_ips")
                     new_ips.add(ip)
             next_known_hosts = next_known_hosts.union(new_ips)
 
         elif action.type == components.ActionType.FindServices:
             #get services for current states in target_host
-            ##logger.info(f"\t\tSearching for services in {action.parameters['target_host']}")
+            logger.info(f"\t\tSearching for services in {action.parameters['target_host']}")
             found_services = self._get_services_from_host(action.parameters["target_host"], current.controlled_hosts)
-            ##logger.info(f"\t\t\tFound {len(found_services)}: {found_services}")
+            logger.info(f"\t\t\tFound {len(found_services)}: {found_services}")
             if len(found_services) > 0:
                 if action.parameters["target_host"] not in next_known_services.keys():
                     next_known_services[action.parameters["target_host"]] = found_services
@@ -635,14 +629,14 @@ class NetworkSecurityEnvironment(object):
 
                 #if host was not known, add it to the known_hosts ONLY if there are some found services
                 if action.parameters["target_host"] not in next_known_hosts:
-                    ##logger.info(f"\t\tAdding {action.parameters['target_host']} to known_hosts")
+                    logger.info(f"\t\tAdding {action.parameters['target_host']} to known_hosts")
                     next_known_hosts.add(action.parameters["target_host"])
                     next_known_networks = next_known_networks.union({net for net, values in self._networks.items() if action.parameters["target_host"] in values})
 
         elif action.type == components.ActionType.FindData:
-            ##logger.info(f"\t\tSearching for data in {action.parameters['target_host']}")
+            logger.info(f"\t\tSearching for data in {action.parameters['target_host']}")
             new_data = self._get_data_in_host(action.parameters["target_host"], current.controlled_hosts)
-            ##logger.info(f"\t\t\t Found {len(new_data)}: {new_data}")
+            logger.info(f"\t\t\t Found {len(new_data)}: {new_data}")
             if len(new_data) > 0:
                 if action.parameters["target_host"] not in next_known_data.keys():
                     next_known_data[action.parameters["target_host"]] = new_data
@@ -651,43 +645,38 @@ class NetworkSecurityEnvironment(object):
 
         elif action.type == components.ActionType.ExploitService:
             # We don't check if the target is a known_host because it can be a blind attempt to attack
-            ##logger.info(f"\t\tAttempting to ExploitService in '{action.parameters['target_host']}':'{action.parameters['target_service']}'")
+            logger.info(f"\t\tAttempting to ExploitService in '{action.parameters['target_host']}':'{action.parameters['target_service']}'")
             if action.parameters["target_host"] in self._ip_to_hostname: #is it existing IP?
-                ##logger.info("\t\t\tValid host")
+                logger.info("\t\t\tValid host")
                 if self._ip_to_hostname[action.parameters["target_host"]] in self._services: #does it have any services?
                     if action.parameters["target_service"] in self._services[self._ip_to_hostname[action.parameters["target_host"]]]: #does it have the service in question?
                         if action.parameters["target_host"] in next_known_services: #does the agent know about any services this host have?
                             if action.parameters["target_service"] in next_known_services[action.parameters["target_host"]]:
-                                ##logger.info("\t\t\tValid service")
+                                logger.info("\t\t\tValid service")
                                 if action.parameters["target_host"] not in next_controlled_hosts:
                                     next_controlled_hosts.add(action.parameters["target_host"])
-                                    ##logger.info("\t\tAdding to controlled_hosts")
+                                    logger.info("\t\tAdding to controlled_hosts")
                                 new_networks = self._get_networks_from_host(action.parameters["target_host"])
-                                ##logger.info(f"\t\t\tFound {len(new_networks)}: {new_networks}")
+                                logger.info(f"\t\t\tFound {len(new_networks)}: {new_networks}")
                                 next_known_networks = next_known_networks.union(new_networks)
                             else:
-                                bor=0
-                                ##logger.info("\t\t\tCan not exploit. Agent does not know about target host selected service")
+                                logger.info("\t\t\tCan not exploit. Agent does not know about target host selected service")
                         else:
-                            bor=0
-                            ##logger.info("\t\t\tCan not exploit. Agent does not know about target host having any service")
+                            logger.info("\t\t\tCan not exploit. Agent does not know about target host having any service")
                     else:
-                        bor=0
-                        ##logger.info("\t\t\tCan not exploit. Target host does not the service that was attempted.")
+                        logger.info("\t\t\tCan not exploit. Target host does not the service that was attempted.")
                 else:
-                    bor=0
-                    ##logger.info("\t\t\tCan not exploit. Target host does not have any services.")
+                    logger.info("\t\t\tCan not exploit. Target host does not have any services.")
             else:
-                bor=0
-                ##logger.info("\t\t\tCan not exploit. Target host does not exist.")
+                logger.info("\t\t\tCan not exploit. Target host does not exist.")
         elif action.type == components.ActionType.ExfiltrateData:
-            ##logger.info(f"\t\tAttempting to Exfiltrate {action.parameters['data']} from {action.parameters['source_host']} to {action.parameters['target_host']}")
+            logger.info(f"\t\tAttempting to Exfiltrate {action.parameters['data']} from {action.parameters['source_host']} to {action.parameters['target_host']}")
             # Is the target host controlled?
             if action.parameters["target_host"] in current.controlled_hosts:
-                ##logger.info(f"\t\t\t {action.parameters['target_host']} is under-control: {current.controlled_hosts}")
+                logger.info(f"\t\t\t {action.parameters['target_host']} is under-control: {current.controlled_hosts}")
                 # Is the source host controlled?
                 if action.parameters["source_host"] in current.controlled_hosts:
-                    ##logger.info(f"\t\t\t {action.parameters['source_host']} is under-control: {current.controlled_hosts}")
+                    logger.info(f"\t\t\t {action.parameters['source_host']} is under-control: {current.controlled_hosts}")
                     # Is the source host in the list of hosts we know data from? (this is to avoid the keyerror later in the if)
                     # Does the current state for THIS source already know about this data?
                     if action.parameters['source_host'] in current.known_data.keys() and action.parameters["data"] in current.known_data[action.parameters["source_host"]]:
@@ -695,7 +684,7 @@ class NetworkSecurityEnvironment(object):
                         if self._ip_to_hostname[action.parameters["source_host"]] in self._data.keys():
                             # Does the source host have this data?
                             if action.parameters["data"] in self._data[self._ip_to_hostname[action.parameters["source_host"]]]:
-                                ##logger.info("\t\t\t Data present in the source_host")
+                                logger.info("\t\t\t Data present in the source_host")
                                 if action.parameters["target_host"] not in next_known_data.keys():
                                     next_known_data[action.parameters["target_host"]] = {action.parameters["data"]}
                                 else:
@@ -706,20 +695,15 @@ class NetworkSecurityEnvironment(object):
                                 else:
                                     self._data[self._ip_to_hostname[action.parameters["target_host"]]].add(action.parameters["data"])
                             else:
-                                bor=0
-                                ##logger.info("\t\t\tCan not exfiltrate. Source host does not have this data.")
+                                logger.info("\t\t\tCan not exfiltrate. Source host does not have this data.")
                         else:
-                            bor=0
-                            ##logger.info("\t\t\tCan not exfiltrate. Source host does not have any data.")
+                            logger.info("\t\t\tCan not exfiltrate. Source host does not have any data.")
                     else:
-                        bor=0
-                        ##logger.info("\t\t\tCan not exfiltrate. Agent did not find this data yet.")
+                        logger.info("\t\t\tCan not exfiltrate. Agent did not find this data yet.")
                 else:
-                    bor=0
-                    ##logger.info("\t\t\tCan not exfiltrate. Source host is not controlled.")
+                    logger.info("\t\t\tCan not exfiltrate. Source host is not controlled.")
             else:
-                bor=0
-                ##logger.info("\t\t\tCan not exfiltrate. Target host is not controlled.")
+                logger.info("\t\t\tCan not exfiltrate. Target host is not controlled.")
         else:
             raise ValueError(f"Unknown Action type or other error: '{action.type}'")
 
@@ -737,12 +721,12 @@ class NetworkSecurityEnvironment(object):
             """
             # check if we have all IPs that should have some values (are keys in goal_dict)
             if goal_dict.keys() <= known_dict.keys():
-                ##logger.info('\t\tKey comparison OK')
+                logger.info('\t\tKey comparison OK')
                 try:
                     # Check if values (sets) for EACH key (host) in goal_dict are subsets of known_dict, keep matching_keys
                     matching_keys = [host for host in goal_dict.keys() if goal_dict[host]<= known_dict[host]]
                     # Check we have the amount of mathing keys as in the goal_dict
-                    ##logger.info(f"\t\tMatching sets: {len(matching_keys)}, required: {len(goal_dict.keys())}")
+                    logger.info(f"\t\tMatching sets: {len(matching_keys)}, required: {len(goal_dict.keys())}")
                     if len(matching_keys) == len(goal_dict.keys()):
                         return True
                 except KeyError:
@@ -769,16 +753,16 @@ class NetworkSecurityEnvironment(object):
             controlled_hosts_goal = False       
         # Services
         # If empty goal, then should be true for this element
-        ##logger.info('Checking the goal of services')
-        ##logger.info(f'\tServices needed to win {self._win_conditions["known_services"]}')
+        logger.info('Checking the goal of services')
+        logger.info(f'\tServices needed to win {self._win_conditions["known_services"]}')
         services_goal = goal_dict_satistfied(self._win_conditions["known_services"], state.known_services)
 
         # Data
-        ##logger.info('Checking the goal of data')
-        ##logger.info(f'\tData needed to win {self._win_conditions["known_data"]}')
+        logger.info('Checking the goal of data')
+        logger.info(f'\tData needed to win {self._win_conditions["known_data"]}')
         known_data_goal = goal_dict_satistfied(self._win_conditions["known_data"], state.known_data)
 
-        ##logger.info(f"\tnets:{networks_goal}, known_hosts:{known_hosts_goal}, controlled_hosts:{controlled_hosts_goal},services:{services_goal}, data:{known_data_goal}")
+        logger.info(f"\tnets:{networks_goal}, known_hosts:{known_hosts_goal}, controlled_hosts:{controlled_hosts_goal},services:{services_goal}, data:{known_data_goal}")
         goal_reached = networks_goal and known_hosts_goal and controlled_hosts_goal and services_goal and known_data_goal
         return goal_reached
 
@@ -788,7 +772,7 @@ class NetworkSecurityEnvironment(object):
             last_n_actions = self._actions_played[-self._defender_thresholds["tw_size"]:]
             last_n_action_types = [action.type for action in last_n_actions]
             repeated_action_episode = self._actions_played.count(action)
-            ##logger.info('\tThreshold check')
+            logger.info('\tThreshold check')
             # update threh
             match action.type: # thresholds are based on action type
                 case components.ActionType.ScanNetwork:
@@ -798,7 +782,7 @@ class NetworkSecurityEnvironment(object):
                     if tw_ratio < self._defender_thresholds[components.ActionType.ScanNetwork]["tw_ratio"] and num_consecutive_scans < self._defender_thresholds[components.ActionType.ScanNetwork]["consecutive_actions"]:
                         return False
                     else:
-                        ##logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.ScanNetwork]['tw_ratio']}), #consecutive actions:{num_consecutive_scans} (T={self._defender_thresholds[components.ActionType.ScanNetwork]['consecutive_actions']})")
+                        logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.ScanNetwork]['tw_ratio']}), #consecutive actions:{num_consecutive_scans} (T={self._defender_thresholds[components.ActionType.ScanNetwork]['consecutive_actions']})")
                         return self._stochastic_detection(action)
                 case components.ActionType.FindServices:
                     tw_ratio = last_n_action_types.count(components.ActionType.FindServices)/self._defender_thresholds["tw_size"]
@@ -807,21 +791,21 @@ class NetworkSecurityEnvironment(object):
                     if tw_ratio < self._defender_thresholds[components.ActionType.FindServices]["tw_ratio"] and num_consecutive_scans < self._defender_thresholds[components.ActionType.FindServices]["consecutive_actions"]:
                         return False
                     else:
-                        ##logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.FindServices]['tw_ratio']}), #consecutive actions:{num_consecutive_scans} (T={self._defender_thresholds[components.ActionType.FindServices]['consecutive_actions']})")
+                        logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.FindServices]['tw_ratio']}), #consecutive actions:{num_consecutive_scans} (T={self._defender_thresholds[components.ActionType.FindServices]['consecutive_actions']})")
                         return self._stochastic_detection(action)
                 case components.ActionType.FindData:
                     tw_ratio = last_n_action_types.count(components.ActionType.FindData)/self._defender_thresholds["tw_size"]
                     if tw_ratio < self._defender_thresholds[components.ActionType.FindData]["tw_ratio"] and repeated_action_episode < self._defender_thresholds[components.ActionType.FindData]["repeated_actions_episode"]:
                         return False
                     else:
-                        ##logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.FindData]['tw_ratio']}), #repeated actions:{repeated_action_episode}")
+                        logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.FindData]['tw_ratio']}), #repeated actions:{repeated_action_episode}")
                         return self._stochastic_detection(action)
                 case components.ActionType.ExploitService:
                     tw_ratio = last_n_action_types.count(components.ActionType.ExploitService)/self._defender_thresholds["tw_size"]
                     if tw_ratio < self._defender_thresholds[components.ActionType.ExploitService]["tw_ratio"] and repeated_action_episode < self._defender_thresholds[components.ActionType.ExploitService]["repeated_actions_episode"]:
                         return False
                     else:
-                        ##logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.ExploitService]['tw_ratio']}), #repeated actions:{repeated_action_episode}")
+                        logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.ExploitService]['tw_ratio']}), #repeated actions:{repeated_action_episode}")
                         return self._stochastic_detection(action)
                 case components.ActionType.ExfiltrateData:
                     tw_ratio = last_n_action_types.count(components.ActionType.ExfiltrateData)/self._defender_thresholds["tw_size"]
@@ -830,7 +814,7 @@ class NetworkSecurityEnvironment(object):
                     if tw_ratio < self._defender_thresholds[components.ActionType.ExfiltrateData]["tw_ratio"] and num_consecutive_scans < self._defender_thresholds[components.ActionType.ExfiltrateData]["consecutive_actions"]:
                         return False
                     else:
-                        ##logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.ExfiltrateData]['tw_ratio']}), #consecutive actions:{num_consecutive_scans} (T={self._defender_thresholds[components.ActionType.ExfiltrateData]['consecutive_actions']})")
+                        logger.info(f"\t\t Threshold crossed - TW ratio:{tw_ratio}(T={self._defender_thresholds[components.ActionType.ExfiltrateData]['tw_ratio']}), #consecutive actions:{num_consecutive_scans} (T={self._defender_thresholds[components.ActionType.ExfiltrateData]['consecutive_actions']})")
                         return self._stochastic_detection(action)
                 case _: # default case - No detection
                     return False
@@ -848,15 +832,15 @@ class NetworkSecurityEnvironment(object):
             match self._defender_type:
                 case "Stochastic":
                     detection = self._stochastic_detection(action)
-                    ##logger.info(f"\tAction detected?: {detection}")
+                    logger.info(f"\tAction detected?: {detection}")
                     return detection
                 case "StochasticWithThreshold":
-                    ##logger.info(f"Checking detection based on rules: {action}")
+                    logger.info(f"Checking detection based on rules: {action}")
                     detection = self._stochastic_detection_with_thresholds(action)
-                    ##logger.info(f"\tAction detected?: {detection}")
+                    logger.info(f"\tAction detected?: {detection}")
                     return detection
         else: # No defender in the environment
-            ##logger.info("\tNo defender present")
+            logger.info("\tNo defender present")
             return False
 
     def reset(self)->components.Observation:
@@ -864,7 +848,7 @@ class NetworkSecurityEnvironment(object):
         Function to reset the state of the game
         and prepare for a new episode
         """
-        ##logger.info('--- Reseting env to its initial state ---')
+        logger.info('--- Reseting env to its initial state ---')
         self._done = False
         self._step_counter = 0
         self._detected = False
@@ -876,7 +860,7 @@ class NetworkSecurityEnvironment(object):
             self._episode_replay_buffer = [] 
         
         if self.task_config.get_use_dynamic_addresses():
-            ##logger.info("Changes IPs dyamically")
+            logger.info("Changes IPs dyamically")
             self._create_new_network_mapping()
 
         #reset self._data to orignal state
@@ -891,7 +875,7 @@ class NetworkSecurityEnvironment(object):
         else:
             self._win_conditions = copy.deepcopy(self._goal_conditions)
 
-        ##logger.info(f'Current state: {self._current_state}')
+        logger.info(f'Current state: {self._current_state}')
         initial_reward = 0
         info = {}
         # An observation has inside ["state", "reward", "done", "info"]
@@ -904,8 +888,8 @@ class NetworkSecurityEnvironment(object):
         out: observation of the state of the env
         """
         if not self._done:
-            ##logger.info(f'Step taken: {self._step_counter}')
-            ##logger.info(f"Agent's action: {action}")
+            logger.info(f'Step taken: {self._step_counter}')
+            logger.info(f"Agent's action: {action}")
             self._step_counter += 1
             reason = {}
 
@@ -913,7 +897,7 @@ class NetworkSecurityEnvironment(object):
             if random.random() <= action.type.default_success_p:
                 self._actions_played.append(action)
                 # The action was successful
-                ##logger.info('\tAction sucessful')
+                logger.info('\tAction sucessful')
 
                 # Get the next state given the action
                 next_state = self._execute_action(self._current_state, action)
@@ -921,7 +905,7 @@ class NetworkSecurityEnvironment(object):
                 reward = self._step_reward
             else:
                 # The action was not successful
-                ##logger.info("\tAction NOT sucessful")
+                logger.info("\tAction NOT sucessful")
 
                 # State does not change
                 next_state = self._current_state
@@ -931,14 +915,14 @@ class NetworkSecurityEnvironment(object):
 
             # 2. Check if the new state is the goal state
             is_goal = self.is_goal(next_state)
-            ##logger.info(f"\tGoal reached?: {is_goal}")
+            logger.info(f"\tGoal reached?: {is_goal}")
             if is_goal:
                 # Give reward
                 reward +=  self._goal_reward
                 # Game ended
                 self._done = True
                 reason = {'end_reason':'goal_reached'}
-                ##logger.info(f'Episode ended. Reason: {reason}')
+                logger.info(f'Episode ended. Reason: {reason}')
 
             # 3. Check if the action was detected
             # Be sure that if the action was detected the game ends with the
@@ -954,19 +938,19 @@ class NetworkSecurityEnvironment(object):
                 self._detected = True
                 self._done = True
                 reason = {'end_reason':'detected'}
-                ##logger.info(f'Episode ended. Reason: {reason}')
+                logger.info(f'Episode ended. Reason: {reason}')
 
             # Make the state we just got into, our current state
             current_state = self._current_state
             self._current_state = next_state
-            ##logger.info(f'Current state: {self._current_state} ')
+            logger.info(f'Current state: {self._current_state} ')
 
             # 4. Check if the max number of steps of the game passed already
             # But if the agent already won in this last step, count the win
             if not is_goal and self._step_counter >= self._max_steps:
                 self._done = True
                 reason = {'end_reason':'max_steps'}
-                ##logger.info(f'Episode ended: Exceeded max number of steps ({self._max_steps})')
+                logger.info(f'Episode ended: Exceeded max number of steps ({self._max_steps})')
 
             # Save the transition to the episode replay buffer if there is any
             if self._episode_replay_buffer is not None:
@@ -974,5 +958,5 @@ class NetworkSecurityEnvironment(object):
             # Return an observation
             return components.Observation(self._current_state, reward, self._done, reason)
         else:
-            ##logger.warning("Interaction over! No more steps can be made in the environment")
+            logger.warning("Interaction over! No more steps can be made in the environment")
             raise ValueError("Interaction over! No more steps can be made in the environment")

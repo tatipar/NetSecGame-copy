@@ -24,62 +24,48 @@ print("POPULATION_SIZE = ", POPULATION_SIZE)
 NUM_GENERATIONS = eval(sys.argv[2])
 print("NUM_GENERATIONS = ", NUM_GENERATIONS)
 
-# parents selection parameters
-TOURNAMENT = sys.argv[3].lower()=="true"
-if TOURNAMENT:
-    print("PARENTS SELECTION = tournament")
-else:
-    print("PARENTS SELECTION = roulette wheel")
-
-REPLACEMENT = sys.argv[4].lower()=="true"
+# parents selection (tournament) parameters
+REPLACEMENT = sys.argv[3].lower()=="true"
 print("REPLACEMENT = ", REPLACEMENT)
 
-NUM_PER_TOURNAMENT = eval(sys.argv[5])
+NUM_PER_TOURNAMENT = eval(sys.argv[4])
 print("NUM_PER_TOURNAMENT = ", NUM_PER_TOURNAMENT)
 
 # crossover parameters
-N_POINTS = sys.argv[6].lower()=="true"
+N_POINTS = sys.argv[5].lower()=="true"
 if N_POINTS:
     print("CROSSOVER = N-points")
+    NUM_POINTS = eval(sys.argv[6])
+    print("NUM_POINTS = ", NUM_POINTS)
 else:
     print("CROSSOVER = uniform")
-
-NUM_POINTS = eval(sys.argv[7])
-print("NUM_POINTS = ", NUM_POINTS)
+    P_VALUE = eval(sys.argv[7])
+    print("P_VALUE = ", P_VALUE)
 
 CROSS_PROB = eval(sys.argv[8])
 print("CROSS_PROB = ", CROSS_PROB)
 
-P_VALUE = eval(sys.argv[9])
-print("P_VALUE = ", P_VALUE)
-
 # mutation parameters
-PARAMETER_MUTATION = sys.argv[10].lower()=="true"
+PARAMETER_MUTATION = sys.argv[9].lower()=="true"
 if PARAMETER_MUTATION:
     print("MUTATION = by parameter")
 else:
     print("MUTATION = by action")
 
-MUTATION_PROB = eval(sys.argv[11])
+MUTATION_PROB = eval(sys.argv[10])
 print("MUTATION_PROB = ", MUTATION_PROB)
 
 # survivor selection parameters
-STEADY_STATE = sys.argv[12].lower()=="true"
-if STEADY_STATE:
-    print("SURVIVOR SELECTION = steady-state")
-else:
-    print("SURVIVOR SELECTION = random")
-
-NUM_REPLACE = eval(sys.argv[13])
+NUM_REPLACE = eval(sys.argv[11])
 print("NUM_REPLACE = ", NUM_REPLACE)
 
-
 # paths
-PATH_GENETIC = str(sys.argv[14])
+PATH_GENETIC = str(sys.argv[12])
 print("PATH_GENETIC ", PATH_GENETIC)
 
-PATH_RESULTS = str(sys.argv[15])
+PATH_RESULTS = str(sys.argv[13])
 print("PATH_RESULTS ", PATH_RESULTS)
+
 
 def generate_valid_actions(state):
     # (function copied from RandomAgent)
@@ -105,6 +91,40 @@ def generate_valid_actions(state):
                 if trg_host != src_host:
                     valid_actions.add(Action(ActionType.ExfiltrateData, params={"target_host": trg_host, "source_host": src_host, "data": data}))
     return list(valid_actions)
+
+
+def choose_parents_tournament(population, goal, fitness_func, num_per_tournament=2, parents_should_differ=True):
+    """ Tournament selection """
+    from_population = population.copy()
+    chosen = []
+    for i in range(2):
+        options = []
+        for _ in range(num_per_tournament):
+            options.append(random.choice(from_population))
+        chosen.append(max(options, key=lambda x:fitness_func(x,env.reset(),goal)[0])) # add [0] because fitness_eval_v3 returns a tuple
+        #chosen.append(max(options, key=lambda x:fitness_eval_v2(x,env.reset(),goal)))
+        if i==0 and parents_should_differ:
+            from_population.remove(chosen[0])
+    return chosen[0], chosen[1]
+
+
+
+#def choose_parents_rouletteWheel(population, population_scores, parents_should_differ=True):
+#    # Roulette wheel  selection 
+#    prob = population_scores / np.sum(population_scores)
+#    wheel = np.cumsum(prob)
+#    chosen = []
+#    run = True
+#    while run:
+#        random_num = random.random()
+#        index_wheel = np.searchsorted(wheel, random_num)
+#        chosen.append(population[index_wheel])
+#        if len(chosen)==2:
+#            if (parents_should_differ and chosen[0] != chosen[1]) or not parents_should_differ:
+#                run = False
+#            else:
+#                _ = chosen.pop(1)
+#    return chosen[0], chosen[1]
 
 
 def mutation_operator_by_parameter(individual, all_actions_by_type, mutation_prob):
@@ -166,131 +186,124 @@ def crossover_operator_uniform(parent1, parent2, p_value, cross_prob):
     return child1, child2
 
 
-def fitness_eval_v1(individual, observation, goal): 
-    """
-    This function rewards when a valid action is performed and a changing state is observed. If the state does not change, it does not contribute to the reward.
-    Actions that are not valid are penalized.
-    A "good action" is an action that is valid and changes the state.
-    """
-    num_good_actions = 0
-    reward = 0
-    reward_goal = 0
-    current_state = observation.state
-    for i in range(len(individual)):
-        valid_actions = generate_valid_actions(current_state)
-        observation = env.step(individual[i])
-        new_state = observation.state
-        if individual[i] in valid_actions:
-            if current_state != new_state:
-                num_good_actions += 1
-                reward += 10
-            else: 
-                reward += 0
-        else:
-            reward += -100
-        current_state = observation.state
-        if observation.info != {} and observation.info["end_reason"]=="goal_reached":
-            reward_goal = 10000
-            break
-    final_reward = reward + reward_goal
-    if final_reward >= 0:
-        return final_reward / num_good_actions
-    else:
-        return final_reward
+
+#def fitness_eval_v1(individual, observation, goal): 
+#    # This function rewards when a valid action is performed and a changing state is observed. If the state does not change, it does not contribute to the reward.
+#    # Actions that are not valid are penalized.
+#    # A 'good action' is an action that is valid and changes the state.
+#    num_good_actions = 0
+#    reward = 0
+#    reward_goal = 0
+#    current_state = observation.state
+#    for i in range(len(individual)):
+#        valid_actions = generate_valid_actions(current_state)
+#        observation = env.step(individual[i])
+#        new_state = observation.state
+#        if individual[i] in valid_actions:
+#            if current_state != new_state:
+#                num_good_actions += 1
+#                reward += 10
+#            else: 
+#                reward += 0
+#        else:
+#            reward += -100
+#        current_state = observation.state
+#        if observation.info != {} and observation.info["end_reason"]=="goal_reached":
+#            reward_goal = 10000
+#            break
+#    final_reward = reward + reward_goal
+#    if final_reward >= 0:
+#        return final_reward / num_good_actions
+#    else:
+#        return final_reward
 
 
-def fitness_eval_v2(individual, observation, goal): 
-    """
-    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
-    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
-    Finally, actions that do not change the state and are not valid are penalized.
-    A "good action" is an action that changes the state (not necessarily a "valid" action).
-    """
-    #num_good_actions = 0
-    #num_bad_actions = 0
-    reward = 0
-    reward_goal = 0
-    current_state = observation.state
-    for i in range(len(individual)):
-        valid_actions = generate_valid_actions(current_state)
-        observation = env.step(individual[i])
-        new_state = observation.state
-        if current_state != new_state:
-            reward += 10
-            #num_good_actions += 1
-        else:
-            if individual[i] in valid_actions:
-                reward += 0
-            else:
-                reward += -100
-                #num_bad_actions += 1
-        current_state = observation.state
-        if observation.info != {} and observation.info["end_reason"] == "goal_reached":
-            reward_goal = 10000
-            break
-    final_reward = reward + reward_goal
-    num_steps = env.timestamp
-    #div_aux = num_steps - num_good_actions + num_bad_actions
-    #if div_aux == 0:
-        # i.e. when num_steps == num_good_actions and num_bad_actions == 0
-        # if num_bad_actions > 0, then num_steps + num_bad_actions != num_good_actions because num_steps > num_good_actions
-    #    div = num_steps
-    #else:
-    #    div = div_aux
-    if final_reward >= 0:
-        return final_reward / num_steps #div
-    else:
-        return final_reward
+#def fitness_eval_v2(individual, observation, goal): 
+#    # This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+#    # Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+#    # Finally, actions that do not change the state and are not valid are penalized.
+#    # A "good action" is an action that changes the state (not necessarily a "valid" action).
+#    #num_good_actions = 0
+#    #num_bad_actions = 0
+#    reward = 0
+#    reward_goal = 0
+#    current_state = observation.state
+#    for i in range(len(individual)):
+#        valid_actions = generate_valid_actions(current_state)
+#        observation = env.step(individual[i])
+#        new_state = observation.state
+#        if current_state != new_state:
+#            reward += 10
+#            #num_good_actions += 1
+#        else:
+#            if individual[i] in valid_actions:
+#                reward += 0
+#            else:
+#                reward += -100
+#                #num_bad_actions += 1
+#        current_state = observation.state
+#        if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+#            reward_goal = 10000
+#            break
+#    final_reward = reward + reward_goal
+#    num_steps = env.timestamp
+#    #div_aux = num_steps - num_good_actions + num_bad_actions
+#    #if div_aux == 0:
+#        # i.e. when num_steps == num_good_actions and num_bad_actions == 0
+#        # if num_bad_actions > 0, then num_steps + num_bad_actions != num_good_actions because num_steps > num_good_actions
+#    #    div = num_steps
+#    #else:
+#    #    div = div_aux
+#    if final_reward >= 0:
+#        return final_reward / num_steps #div
+#    else:
+#        return final_reward
 
     
-def fitness_eval_v01(individual, observation, goal): 
-    """
-    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
-    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
-    Finally, actions that do not change the state and are not valid are penalized.
-    A "good action" is an action that changes the state (not necessarily a "valid" action).
-    """
-    i = 0
-    num_good_actions = 0
-    num_boring_actions = 0
-    num_bad_actions = 0
-    reward = 0
-    reward_goal = 0
-    current_state = observation.state
-    while i < len(individual) and not observation.done:
-        valid_actions = generate_valid_actions(current_state)
-        observation = env.step(individual[i])
-        new_state = observation.state
-        if current_state != new_state:
-            reward += 10
-            num_good_actions += 1
-        else:
-            if individual[i] in valid_actions:
-                reward += 0
-                num_boring_actions += 1
-            else:
-                reward += -100
-                num_bad_actions += 1
-        current_state = observation.state
-        i += 1
-    num_steps = env.timestamp
-    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
-        reward_goal = 10000
-    final_reward = reward + reward_goal
-    if final_reward >= 0:
-        return_reward = final_reward / num_good_actions
-    else:
-        return_reward = final_reward 
-    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
+#def fitness_eval_v01(individual, observation, goal): 
+#    # This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+#    # Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+#    # Finally, actions that do not change the state and are not valid are penalized.
+#    # A "good action" is an action that changes the state (not necessarily a "valid" action).
+#    i = 0
+#    num_good_actions = 0
+#    num_boring_actions = 0
+#    num_bad_actions = 0
+#    reward = 0
+#    reward_goal = 0
+#    current_state = observation.state
+#    while i < len(individual) and not observation.done:
+#        valid_actions = generate_valid_actions(current_state)
+#        observation = env.step(individual[i])
+#        new_state = observation.state
+#        if current_state != new_state:
+#            reward += 10
+#            num_good_actions += 1
+#        else:
+#            if individual[i] in valid_actions:
+#                reward += 0
+#                num_boring_actions += 1
+#            else:
+#                reward += -100
+#                num_bad_actions += 1
+#        current_state = observation.state
+#        i += 1
+#    num_steps = env.timestamp
+#    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+#        reward_goal = 10000
+#    final_reward = reward + reward_goal
+#    if final_reward >= 0:
+#        return_reward = final_reward / num_good_actions
+#    else:
+#        return_reward = final_reward 
+#    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
     
 
-def fitness_eval_v02(individual, observation, goal): 
-    """
-    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
-    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
-    Finally, actions that do not change the state and are not valid are penalized.
-    A "good action" is an action that changes the state (not necessarily a "valid" action).
-    """
+def fitness_eval_v02(individual, observation, goal):
+    #This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+    #Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+    #Finally, actions that do not change the state and are not valid are penalized.
+    #A "good action" is an action that changes the state (not necessarily a "valid" action).
     i = 0
     num_good_actions = 0
     num_boring_actions = 0
@@ -333,80 +346,47 @@ def fitness_eval_v02(individual, observation, goal):
         return_reward = final_reward 
     #print(return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps)
     return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
+   
+
+
+#def fitness_eval_v03(individual, observation, goal): 
+#    # This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
+#    # Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
+#    # Finally, actions that do not change the state and are not valid are penalized.
+#    # A "good action" is an action that changes the state (not necessarily a "valid" action).
+#    i = 0
+#    num_good_actions = 0
+#    num_boring_actions = 0
+#    num_bad_actions = 0
+#    reward = 0
+#    reward_goal = 0
+#    current_state = observation.state
+#    while i < len(individual) and not observation.done:
+#        valid_actions = generate_valid_actions(current_state)
+#        observation = env.step(individual[i])
+#        new_state = observation.state
+#        if current_state != new_state:
+#            reward += 10
+#            num_good_actions += 1
+#        else:
+#            if individual[i] in valid_actions:
+#                reward += -20
+#                num_boring_actions += 1
+#            else:
+#                reward += -100
+#                num_bad_actions += 1
+#        current_state = observation.state
+#        i += 1
+#    num_steps = env.timestamp
+#    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
+#        reward_goal = 10000
+#    final_reward = reward + reward_goal
+#    if final_reward >= 0:
+#        return_reward = final_reward / num_good_actions
+#    else:
+#        return_reward = final_reward 
+#    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
     
-
-def fitness_eval_v03(individual, observation, goal): 
-    """
-    This function rewards when a changing state is observed, it does not care if the action is valid or not (e.g. FindServices on a host before doing the corresponding ScanNetwork is not valid, but it is possible and the state will probably change, so it is rewarded).
-    Furthermore, if the state does not change but the action is valid, it does not contribute to the reward.
-    Finally, actions that do not change the state and are not valid are penalized.
-    A "good action" is an action that changes the state (not necessarily a "valid" action).
-    """
-    i = 0
-    num_good_actions = 0
-    num_boring_actions = 0
-    num_bad_actions = 0
-    reward = 0
-    reward_goal = 0
-    current_state = observation.state
-    while i < len(individual) and not observation.done:
-        valid_actions = generate_valid_actions(current_state)
-        observation = env.step(individual[i])
-        new_state = observation.state
-        if current_state != new_state:
-            reward += 10
-            num_good_actions += 1
-        else:
-            if individual[i] in valid_actions:
-                reward += -20
-                num_boring_actions += 1
-            else:
-                reward += -100
-                num_bad_actions += 1
-        current_state = observation.state
-        i += 1
-    num_steps = env.timestamp
-    if observation.info != {} and observation.info["end_reason"] == "goal_reached":
-        reward_goal = 10000
-    final_reward = reward + reward_goal
-    if final_reward >= 0:
-        return_reward = final_reward / num_good_actions
-    else:
-        return_reward = final_reward 
-    return return_reward, num_good_actions, num_boring_actions, num_bad_actions, num_steps
-    
-
-def choose_parents_tournament(population, goal, fitness_func, num_per_tournament=2, parents_should_differ=True):
-    """ Tournament selection """
-    from_population = population.copy()
-    chosen = []
-    for i in range(2):
-        options = []
-        for _ in range(num_per_tournament):
-            options.append(random.choice(from_population))
-        chosen.append(max(options, key=lambda x:fitness_func(x,env.reset(),goal)[0])) # add [0] because fitness_eval_v3 returns a tuple
-        #chosen.append(max(options, key=lambda x:fitness_eval_v2(x,env.reset(),goal)))
-        if i==0 and parents_should_differ:
-            from_population.remove(chosen[0])
-    return chosen[0], chosen[1]
-
-
-def choose_parents_rouletteWheel(population, population_scores, parents_should_differ=True):
-    """ Roulette wheel  selection """
-    prob = population_scores / np.sum(population_scores)
-    wheel = np.cumsum(prob)
-    chosen = []
-    run = True
-    while run:
-        random_num = random.random()
-        index_wheel = np.searchsorted(wheel, random_num)
-        chosen.append(population[index_wheel])
-        if len(chosen)==2:
-            if (parents_should_differ and chosen[0] != chosen[1]) or not parents_should_differ:
-                run = False
-            else:
-                _ = chosen.pop(1)
-    return chosen[0], chosen[1]
 
 
 #def is_fitness_equal(best_scores):
@@ -425,16 +405,17 @@ def steady_state_selection(parents, parents_scores, offspring, offspring_scores,
     return new_generation
 
 
-def random_selection(parents, offspring, num_replace):
-    len_parents = len(parents)
-    indices = np.sort(np.random.choice(len_parents, num_replace, replace=False))
-    new_generation = []
-    for i in range(len_parents): 
-        if i not in indices:
-            new_generation.append(parents[i])
-        else:
-            new_generation.append(offspring[i])
-    return new_generation
+
+#def random_selection(parents, offspring, num_replace):
+#    len_parents = len(parents)
+#    indices = np.sort(np.random.choice(len_parents, num_replace, replace=False))
+#    new_generation = []
+#    for i in range(len_parents): 
+#        if i not in indices:
+#            new_generation.append(parents[i])
+#        else:
+#            new_generation.append(offspring[i])
+#    return new_generation
 
 
 def get_all_actions_by_type(all_actions):
@@ -482,23 +463,23 @@ all_actions_by_type = get_all_actions_by_type(all_actions)
 population_size = POPULATION_SIZE
 num_generations = NUM_GENERATIONS
 
-# parents selection parameters
-tournament = TOURNAMENT
+# parents selection (tournament) parameters
 select_parents_with_replacement = REPLACEMENT
 num_per_tournament = NUM_PER_TOURNAMENT
 
 # crossover parameters
 Npoints = N_POINTS
-num_points = NUM_POINTS
+if N_POINTS:
+    num_points = NUM_POINTS
+else:
+    p_value = P_VALUE
 cross_prob = CROSS_PROB
-p_value = P_VALUE
 
 # mutation parameters
 parameter_mutation = PARAMETER_MUTATION
 mutation_prob = MUTATION_PROB
 
 # survivor selection parameters
-steady_state = STEADY_STATE
 num_replace = NUM_REPLACE
 
 
@@ -511,24 +492,23 @@ population = [[random.choice(all_actions) for _ in range(max_number_steps)] for 
 generation = 0
 best_score = 0
 
-#tolerance = 20
-#last_scores = [1.0] + [None] * (tolerance-1)
-
 try:
-    while (generation < num_generations) and (best_score < 2500): #and not is_fitness_equal(last_scores):
+    while (generation < num_generations) and (best_score < 2500):
+        #print(generation)
         offspring = []
+        #print("inic offspring")
         popu_crossover = population.copy()
+        #print("copy population")
         parents_scores = np.array([fitness_eval_v02(individual, env.reset(), goal) for individual in population])
+        #print("parents_scores")
         index_best_score = np.argmax(parents_scores[:,0])
+        #print(index_best_score)
         best_score_complete = parents_scores[index_best_score, :]
+        #print(best_score_complete)
         best_score = best_score_complete[0]
-        #if generation < tolerance:
-        #    last_scores[generation] = best_score
-        #else:
-        #    last_scores.pop(0)
-        #    last_scores.append(best_score)
         metrics_mean = np.mean(parents_scores, axis=0)
         metrics_std = np.std(parents_scores, axis=0)
+        #print(best_score,metrics_mean,metrics_std)
         # save best, mean and std scores
         with open(path.join(PATH_RESULTS, 'best_scores.csv'), 'a', newline='') as partial_file:
             writer_csv = csv.writer(partial_file)
@@ -546,15 +526,14 @@ try:
                 popu_crossover.remove(parent1)
                 popu_crossover.remove(parent2)
             # parents selection
-            if tournament:
-                parent1, parent2 = choose_parents_tournament(popu_crossover, goal, fitness_eval_v02, num_per_tournament, True)
-            else:
-                parent1, parent2 = choose_parents_rouletteWheel(popu_crossover, parents_scores[:,0], True)
+            parent1, parent2 = choose_parents_tournament(popu_crossover, goal, fitness_eval_v02, num_per_tournament, True)
+            #print("parets_selection")
             # cross-over
             if Npoints:
                 child1, child2 = crossover_operator_Npoints(parent1, parent2, num_points, cross_prob)
             else:
                 child1, child2 = crossover_operator_uniform(parent1, parent2, p_value, cross_prob)
+            #print("crossover")
             # mutation
             if parameter_mutation:
                 child1 = mutation_operator_by_parameter(child1, all_actions_by_type, mutation_prob)
@@ -562,16 +541,16 @@ try:
             else:
                 child1 = mutation_operator_by_action(child1, all_actions, mutation_prob)
                 child2 = mutation_operator_by_action(child2, all_actions, mutation_prob)
+            #print("mutation")
             offspring.append(child1)
             offspring.append(child2)
         offspring_scores = np.array([fitness_eval_v02(individual, env.reset(), goal) for individual in offspring])
         # survivor selection
-        if steady_state:
-            new_generation = steady_state_selection(population, parents_scores, offspring, offspring_scores, num_replace)
-        else:
-            new_generation = random_selection(population, offspring, num_replace)
+        new_generation = steady_state_selection(population, parents_scores, offspring, offspring_scores, num_replace)
         population = new_generation
         generation += 1
+        #print("survivor")
+        #print("\n")
 
 except Exception as e:
         print(f"Error: {e}")
@@ -611,7 +590,7 @@ print("\nBest sequence: \n")
 for i in range(max_number_steps):
     print(best_sequence[i])
 
-print("\nBest sequence score: ", best_score_complete[0])
+print("\nBest sequence score: ", best_score_complete)
 
 end_time = time.time()
 print("\ntime: ", end_time - start_time, "\n")
