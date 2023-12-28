@@ -2,19 +2,20 @@
 
 PATH_REPO=`git rev-parse --show-toplevel` # path of the top-level directory
 
-cd ${PATH_REPO}/results/
+ALL_RESULTS=${PATH_REPO}/agents/genetic/results/
+cd ${ALL_RESULTS}
 
 for result in `ls`; do
 	cd $result/
-	for dirname in `ls -d */`; do 
-    		base1=`echo $dirname | awk -F'_' '{print $2"_"$3}'`
-    		base2=`basename $base1 /`
-    		grep "Generation" results_$base2/results_$base2.txt | awk '{print $3}' >> number_generations
-    		grep "score" results_$base2/results_$base2.txt | awk '{print $4}' >> score_last_generation
-    		grep "time" results_$base2/results_$base2.txt | awk '{print $2}' >> time_per_generation
+	mkdir analysis
+	for  i in {0..9}; do
+		grep "Generation" results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{print $3}' >> analysis/number_generations
+		grep -oP 'Best sequence score:  \[\K[0-9.]*' results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{print $1}' >> analysis/best_score_last_generation
+		grep "time" results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{print $2}' >> analysis/total_time
 	done
+	PATH_RESULTS=${ALL_RESULTS}/${result}
+	python3 -u ${PATH_REPO}/agents/genetic/python/analysis.py ${PATH_RESULTS} >> analysis/analysis.txt 
 	cd ../
 done	
 
 
-#for dirname in `ls -d */`; do base1=`echo $dirname | awk -F'_' '{print $2"_"$3}'`; base2=`basename $base1 /`; grep "score" results_$base2/results_$base2.txt | awk '{print $4}'; done
