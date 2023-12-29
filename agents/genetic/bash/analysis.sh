@@ -10,7 +10,7 @@ for result in `ls`; do
 	mkdir analysis
 	for  i in {0..9}; do
 		grep "Generation" results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{print $3}' >> analysis/number_generations
-		grep -oP 'Best sequence score:  \[\K[0-9.]*' results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{print $1}' >> analysis/best_score_last_generation
+		grep 'Best sequence score:' results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{gsub(/[\[\]]/, ""); print $4}' >> analysis/best_score_last_generation
 		grep "time" results_$(printf "%02d" "$i")/results_$(printf "%02d" "$i").txt | awk '{print $2}' >> analysis/total_time
 	done
 	PATH_RESULTS=${ALL_RESULTS}/${result}
@@ -18,4 +18,21 @@ for result in `ls`; do
 	cd ../
 done	
 
+
+for result in `ls`; do
+	max_score=`grep "max" $result/analysis/analysis.txt | awk '{print $2}'`
+	mean_score=`grep "mean" $result/analysis/analysis.txt | awk '{print $2}'`
+	std_score=`grep "std" $result/analysis/analysis.txt | awk '{print $2}'`
+	mean_time=`grep "mean" $result/analysis/analysis.txt | awk '{print $4}'`
+	std_time=`grep "std" $result/analysis/analysis.txt | awk '{print $4}'`
+	printf "%s,%.4f,%.4f,%.4f,%.4f,%.4f\n" "$result" "$max_score" "$mean_score" "$std_score" "$mean_time" "$std_time" >> all_results.csv
+done
+
+sort -t',' -k2,2 -n -r all_results.csv > all_results_sorted_by_max_score.csv
+
+file_csv="all_results_sorted_by_max_score.csv"
+headline="configuration,max_score,mean_score,std_score,mean_time,std_time"
+echo "$headline" > tmpfile
+cat "$file_csv" >> tmpfile
+mv tmpfile "$file_csv"
 
