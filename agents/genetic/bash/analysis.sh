@@ -23,15 +23,17 @@ for result in `ls`; do
 	max_score=`grep "max" $result/analysis/analysis.txt | awk '{print $2}'`
 	mean_score=`grep "mean" $result/analysis/analysis.txt | awk '{print $2}'`
 	std_score=`grep "std" $result/analysis/analysis.txt | awk '{print $2}'`
+	best_sol=`grep "Best" $result/analysis/analysis.txt | awk '{print $2}'`
+	time_max_score=`grep "time" $result/$best_sol/${best_sol}.txt | awk '{print $2}'`
 	mean_time=`grep "mean" $result/analysis/analysis.txt | awk '{print $4}'`
 	std_time=`grep "std" $result/analysis/analysis.txt | awk '{print $4}'`
-	printf "%s,%.4f,%.4f,%.4f,%.4f,%.4f\n" "$result" "$max_score" "$mean_score" "$std_score" "$mean_time" "$std_time" >> all_results.csv
+	printf "%s,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" "$result" "$max_score" "$mean_score" "$std_score" "$time_max_score" "$mean_time" "$std_time" >> all_results.csv
 done
 
 sort -t',' -k2,2 -n -r all_results.csv > all_results_sorted_by_max_score.csv
 
 file_csv="all_results_sorted_by_max_score.csv"
-headline="configuration,max_score,mean_score,std_score,mean_time,std_time"
+headline="configuration,max_score,mean_score,std_score,time_max_score,mean_time,std_time"
 echo "$headline" > tmpfile
 cat "$file_csv" >> tmpfile
 mv tmpfile "$file_csv"
