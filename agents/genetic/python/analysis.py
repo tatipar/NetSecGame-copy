@@ -7,7 +7,7 @@ import sys
 PATH_RESULTS = str(sys.argv[1])
 
 
-## Analysis over ten repetitions ##
+## Analisis de los resultados obtenidos teniendo en cuenta las diez repeticiones de cada configuracion ##
 
 score_last_generation = pd.read_csv(path.join(PATH_RESULTS, "analysis/best_score_last_generation"), names=["best_score"])
 generations = pd.read_csv(path.join(PATH_RESULTS, "analysis/number_generations"), names=["generations"])
@@ -37,7 +37,10 @@ df = pd.concat([score_last_generation, generations, time], axis=1)
 print("\n", df.describe())
 
 
-## Analysis over best repetition ##
+############################################################################
+
+
+## Analisis sobre la mejor solucion encontrada de entre las diez repeticiones  ##
 
 best = np.argmax(score_last_generation)
 print("\nBest: results_0", best, "\n",  sep='')

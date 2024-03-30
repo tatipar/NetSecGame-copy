@@ -1,5 +1,9 @@
 #!/bin/bash
 
+## Script que automatiza el analisis de resultados obtenidos
+
+
+
 PATH_REPO=`git rev-parse --show-toplevel` # path of the top-level directory
 
 ALL_RESULTS=${PATH_REPO}/agents/genetic/results/
