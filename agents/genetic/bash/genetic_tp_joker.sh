@@ -11,7 +11,7 @@ REPLACEMENT=true
 NUM_PER_TOURNAMENT=(5 8)
 
 # crossover parameters
-N_POINTS=true # if true: N-points crossover, else: uniform crossover
+N_POINTS=false # if true: N-points crossover, else: uniform crossover
 #NUM_POINTS=(1 3 6)
 P_VALUE=0.5
 CROSS_PROB=(0.8 1.0)
@@ -49,7 +49,7 @@ for num_per_tournament in "${NUM_PER_TOURNAMENT[@]}"; do
 		for mut_prob in "${MUTATION_PROB[@]}"; do
 			for num_replace in "${NUM_REPLACE[@]}"; do 
 				for num_points in "${NUM_POINTS[@]}"; do
-					for i in {0..9}; do
+					for i in {10..19}; do
 						PATH_RESULTS="${PATH_GENETIC}/results/${num_per_tournament}_${cross_op}_${num_points}_${cross_prob}_${mut_op}_${mut_prob}_${num_replace}/results_$(printf "%02d" "$i")"
 						mkdir -p ${PATH_RESULTS}
 						cd ${PATH_RESULTS}

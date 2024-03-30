@@ -7,11 +7,11 @@ import sys
 PATH_RESULTS = str(sys.argv[1])
 
 
-## Analisis de los resultados obtenidos teniendo en cuenta las diez repeticiones de cada configuracion ##
+## Analysis over ten repetitions ##
 
-score_last_generation = pd.read_csv(path.join(PATH_RESULTS, "analysis/best_score_last_generation"), names=["best_score"])
-generations = pd.read_csv(path.join(PATH_RESULTS, "analysis/number_generations"), names=["generations"])
-time =  pd.read_csv(path.join(PATH_RESULTS, "analysis/total_time"), names=["time"])
+score_last_generation = pd.read_csv(path.join(PATH_RESULTS, "analysis_20rep/best_score_last_generation"), names=["best_score"])
+generations = pd.read_csv(path.join(PATH_RESULTS, "analysis_20rep/number_generations"), names=["generations"])
+time =  pd.read_csv(path.join(PATH_RESULTS, "analysis_20rep/total_time"), names=["time"])
 
 
 fig, ax1 = plt.subplots()
@@ -29,25 +29,26 @@ for bplot, color in zip([box1, box2], colors):
     for patch in bplot['boxes']:
         patch.set_facecolor(color)
 
-plt.suptitle("Metrics over ten repetitions")
-_ = plt.savefig(path.join(PATH_RESULTS, "analysis/boxplot_10results.png"))
+plt.suptitle("Metrics over twenty repetitions")
+_ = plt.savefig(path.join(PATH_RESULTS, "analysis_20rep/boxplot_20results.png"))
 
 
 df = pd.concat([score_last_generation, generations, time], axis=1)
 print("\n", df.describe())
 
 
-############################################################################
-
-
-## Analisis sobre la mejor solucion encontrada de entre las diez repeticiones  ##
+## Analysis over best repetition ##
 
 best = np.argmax(score_last_generation)
-print("\nBest: results_0", best, "\n",  sep='')
+if best <= 9:
+    best_string = "0" + str(best)
+else:
+    best_string = str(best)
+print("\nBest: results_", best_string, "\n",  sep='')
 
-best_solution_max_scores = pd.read_csv(path.join(PATH_RESULTS, f'results_0{best}/best_scores.csv'), names=["score", "good_actions", "boring_actions", "bad_actions", "num_steps"])
-best_solution_mean_scores = pd.read_csv(path.join(PATH_RESULTS, f'results_0{best}/metrics_mean.csv'), names=["score", "good_actions", "boring_actions", "bad_actions", "num_steps"])
-best_solution_std_scores = pd.read_csv(path.join(PATH_RESULTS, f'results_0{best}/metrics_std.csv'), names=["score", "good_actions", "boring_actions", "bad_actions", "num_steps"])
+best_solution_max_scores = pd.read_csv(path.join(PATH_RESULTS, f'results_{best_string}/best_scores.csv'), names=["score", "good_actions", "boring_actions", "bad_actions", "num_steps"])
+best_solution_mean_scores = pd.read_csv(path.join(PATH_RESULTS, f'results_{best_string}/metrics_mean.csv'), names=["score", "good_actions", "boring_actions", "bad_actions", "num_steps"])
+best_solution_std_scores = pd.read_csv(path.join(PATH_RESULTS, f'results_{best_string}/metrics_std.csv'), names=["score", "good_actions", "boring_actions", "bad_actions", "num_steps"])
 
 num_generations = len(best_solution_max_scores)
 
@@ -59,14 +60,14 @@ _ = plt.legend()
 _ = plt.xlabel("Generation")
 _ = plt.ylabel("Fitness value")
 _ = plt.title("Scores over each generation - Best repetition")
-_ = plt.savefig(path.join(PATH_RESULTS, "analysis/scores.png"))
+_ = plt.savefig(path.join(PATH_RESULTS, "analysis_20rep/scores.png"))
 
 
 fig = plt.figure()
 _ = plt.boxplot(best_solution_max_scores.iloc[:,0], labels=['Score'])
 _ = plt.ylabel("Fitness value")
 _ = plt.title("Maximum score over each generation - Best repetition")
-_ = plt.savefig(path.join(PATH_RESULTS, "analysis/best_solution_boxplot_score.png"))
+_ = plt.savefig(path.join(PATH_RESULTS, "analysis_20rep/best_solution_boxplot_score.png"))
 
 
 fig = plt.figure()
@@ -74,5 +75,5 @@ _ = plt.boxplot(best_solution_max_scores.iloc[:,1:], labels=['Good', 'Boring', '
 _ = plt.xlabel("Actions")
 _ = plt.ylabel("Quantity")
 _ = plt.title("Number of actions - Best repetition")
-_ = plt.savefig(path.join(PATH_RESULTS, "analysis/best_solution_boxplot_actions.png")) 
+_ = plt.savefig(path.join(PATH_RESULTS, "analysis_20rep/best_solution_boxplot_actions.png")) 
 
